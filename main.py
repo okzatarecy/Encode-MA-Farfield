@@ -4,13 +4,13 @@ Created on Fri Feb 14 14:22:51 2025
 
 @author: gfrpurba
 """
-# =============================================================================
-# from qiskit.circuit import Parameter
-# from qiskit import QuantumCircuit
-# from qiskit import QuantumRegister, ClassicalRegister
-# from qiskit import transpile
-# from qiskit.visualization import plot_histogram
-# =============================================================================
+from qiskit.circuit import Parameter
+import qiskit
+from qiskit import QuantumRegister, ClassicalRegister
+from qiskit import transpile
+from qiskit.visualization import plot_histogram
+from qiskit_aer import Aer
+from qiskit_aer.primitives import SamplerV2
 import numpy as np
 from math import pi
 import scipy
@@ -19,14 +19,15 @@ import scipy
 fc = 30e9               #carrier frequency [Hz]                
 lambda_w = 3e8 / fc;    #wavelength [m]
 d = lambda_w/2          #distance of elemen antennas [m]
-Nt = 512                #elemen of antennas
-N_user = 10             #number of users
+Nt = 16                 #elemen of antennas
+N_user = 2              #number of users
 r_circle_min = 4        #min diameter circle [m]
 r_circle_max = 100      #max diameter circle [m]
 L = 5                   #number of paths
 kappa_list = np.arange(0.5,10,0.5);
 kappa = kappa_list[0];  #Rician factor
 sigma_aod = np.pi/180*5;    #angle of departure
+
 
 # %% defining functions
 def ula(phi, N_ant, f = 30e9):
@@ -67,8 +68,8 @@ def generate_user_in_circle_multipath(Nt, d, r_min, r_max, fc, N_user, sigma_aod
             y_list[:,cnt] = y_1;
             cnt = cnt+1;
             
-    [theta_list, r_list]  = cart2pol(x_list, y_list);
-    nn = np.arange(-(Nt-1)/2,(Nt-1)/2,1);   #position of element from - 0 +
+    theta_list, r_list  = cart2pol(x_list, y_list);
+    nn = np.arange(-(Nt-1)/2,(Nt)/2,1);   #position of element from - 0 +
     theta_aod  = np.sqrt(sigma_aod)*np.random.random([N_user,L]);
     ssf = (np.random.random([N_user,L]) + 1j*np.random.random([N_user,L]))/np.sqrt(2);
     #allocate a factor to fade the NLoS channel
@@ -78,17 +79,17 @@ def generate_user_in_circle_multipath(Nt, d, r_min, r_max, fc, N_user, sigma_aod
 
     for i_user in range(N_user):
         for l in range(L+1):
-            if l != L+1:
-                r0 = r_list[i_user];
-                theta0 = theta_list[i_user]+theta_aod[i_user,l];
+            if l != L:
+                r0 = r_list[0,i_user];
+                theta0 = theta_list[0,i_user]+theta_aod[i_user,l];
                 r = np.sqrt(r0**2 + (nn*d)**2 - 2*r0*nn*d*np.sin(theta0));
-                at = np.exp(-1j*2*np.pi*fc*(r - r0)/c)/np.sqrt(Nt);
+                at = np.exp(-1j*2*np.pi*fc/c*(r - r0)*np.sin(theta0))/np.sqrt(Nt);
                 H_multi_user[i_user, :] = H_multi_user[i_user, :] + ssf[i_user,l]*at*np.sqrt(1/(1+kappa));
             else:
-                r0 = r_list[i_user];
-                theta0 = theta_list[i_user];
+                r0 = r_list[0,i_user];
+                theta0 = theta_list[0,i_user];
                 r = np.sqrt(r0**2 + (nn*d)**2 - 2*r0*nn*d*np.sin(theta0));
-                at = np.exp(-1j*2*np.pi*fc*(r - r0)/c)/np.sqrt(Nt);
+                at = np.exp(-1j*2*np.pi*fc/c*(r - r0)*np.sin(theta0))/np.sqrt(Nt);
                 H_multi_user[i_user, :] = H_multi_user[i_user, :] + at*np.sqrt(kappa/(1+kappa));
     
     if L ==0:
@@ -96,9 +97,52 @@ def generate_user_in_circle_multipath(Nt, d, r_min, r_max, fc, N_user, sigma_aod
         
     return H_multi_user
 
-generate_user_in_circle_multipath(Nt, d, r_circle_min,r_circle_max, fc, 10, sigma_aod, L, 1)    
+H = generate_user_in_circle_multipath(Nt, d, r_circle_min, r_circle_max, fc, N_user, sigma_aod, L, kappa)    
         
+# %% Encoding Quantum
+class QuantumCircuit:
+    def __init__(self,n_qubits,backend,shots):
+        #--Circuit definition---
+        self._circuit = qiskit.QuantumCircuit(n_qubits)
         
+        all_qubits = [i for i in range(n_qubits)]
         
+        self.theta_real = qiskit.circuit.Parameter("theta real")
+        self.theta_imag = qiskit.circuit.Parameter("theta imag")
+        self._circuit.h(all_qubits)
+        self._circuit.barrier()
         
+        self._circuit.ry(self.theta_real, all_qubits)
+        self._circuit.ry(self.theta_imag, all_qubits)
+        self._circuit.measure_all()
+        
+        self.backend = backend
+        self.shots = shots
+        self.draw = self._circuit.draw()
+        
+    def run(self, theta):
+        sampler = SamplerV2()
+        job = sampler.run([(self._circuit,[theta])], shots = self.shots)
+        
+        #get and display result
+        result_ideal = job.result()
+        counts_ideal = result_ideal[0].data.meas.get_counts()
+        counts = np.array(list(counts_ideal.value()))
+        states = np.array(list(counts_ideal.key())).astype(float)
+        
+        #compute probabilities for each state
+        probabilities = counts / self.shots
+        expectation = np.sum(states*probabilities)
+        return np.array([expectation])
+# %% Test encoding 
+        
+inputs = np.reshape(H,(-1,1))
+backend = Aer.get_backend("aer_simulator")
+shots = 1024   
+qc =QuantumCircuit(np.size(inputs), backend, shots)
+qc.draw
+
+# %% calculate 
+
+h_real = 
         
