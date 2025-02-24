@@ -4,13 +4,14 @@ Created on Fri Feb 14 14:22:51 2025
 
 @author: gfrpurba
 """
-from qiskit.circuit import Parameter
 import qiskit
+from qiskit.circuit import Parameter
 from qiskit import QuantumRegister, ClassicalRegister
 from qiskit import transpile
 from qiskit.visualization import plot_histogram
 from qiskit_aer import Aer
 from qiskit_aer.primitives import SamplerV2
+from qiskit.primitives import StatevectorSampler
 import numpy as np
 from math import pi
 import scipy
@@ -19,7 +20,7 @@ import scipy
 fc = 30e9               #carrier frequency [Hz]                
 lambda_w = 3e8 / fc;    #wavelength [m]
 d = lambda_w/2          #distance of elemen antennas [m]
-Nt = 16                 #elemen of antennas
+Nt = 2               #elemen of antennas
 N_user = 2              #number of users
 r_circle_min = 4        #min diameter circle [m]
 r_circle_max = 100      #max diameter circle [m]
@@ -113,36 +114,57 @@ class QuantumCircuit:
         self._circuit.barrier()
         
         self._circuit.ry(self.theta_real, all_qubits)
-        self._circuit.ry(self.theta_imag, all_qubits)
+        self._circuit.rz(self.theta_imag, all_qubits)
         self._circuit.measure_all()
         
         self.backend = backend
         self.shots = shots
         self.draw = self._circuit.draw()
+    
         
-    def run(self, theta):
-        sampler = SamplerV2()
-        job = sampler.run([(self._circuit,[theta])], shots = self.shots)
+    def run(self, theta_real, theta_imag):
+        #sampler = SamplerV2()
+    
+        params = np.hstack((theta_real.T, theta_imag.T))
+        sampler = StatevectorSampler()
+        sampler_pub = [(self._circuit, params, self.shots)]
+        job = sampler.run(sampler_pub)
         
-        #get and display result
-        result_ideal = job.result()
-        counts_ideal = result_ideal[0].data.meas.get_counts()
-        counts = np.array(list(counts_ideal.value()))
-        states = np.array(list(counts_ideal.key())).astype(float)
+        result = job.result()
+        counts = result[0].data.meas.get_counts()
         
-        #compute probabilities for each state
-        probabilities = counts / self.shots
-        expectation = np.sum(states*probabilities)
-        return np.array([expectation])
+        # #get and display result
+        # result_ideal = job.result()
+        # counts_ideal = result_ideal[0].data.meas.get_counts()
+        # counts = np.array(list(counts_ideal.value()))
+        # states = np.array(list(counts_ideal.key())).astype(float)
+        
+        # #compute probabilities for each state
+        # probabilities = counts / self.shots
+        # expectation = np.sum(states*probabilities)
+        return counts
+    
 # %% Test encoding 
         
 inputs = np.reshape(H,(-1,1))
 backend = Aer.get_backend("aer_simulator")
-shots = 1024   
+shots = 50
 qc =QuantumCircuit(np.size(inputs), backend, shots)
 qc.draw
 
+inputs_real = np.array([np.real(inputs[:,0])])
+inputs_imag = np.array([np.imag(inputs[:,0])])
+counts = qc.run(inputs_real, inputs_imag)
+#result =qc.run(inputs_real,inputs_imag)
 # %% calculate 
 
-h_real = 
-        
+counts_array = np.array([list(counts.values())])
+int_key_dict = [int(key,2) for key in counts.keys()]
+prob = counts_array/shots
+dict_prob = dict(zip(int_key_dict, prob.tolist()[0]))
+
+plot_histogram(counts, sort='value_desc')
+# %%
+
+
+plot_histogram(dict_prob, sort='value_desc')
