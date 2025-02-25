@@ -11,7 +11,8 @@ from qiskit import transpile
 from qiskit.visualization import plot_histogram
 from qiskit_aer import Aer
 from qiskit_aer.primitives import SamplerV2
-from qiskit.primitives import StatevectorSampler
+from qiskit.primitives import StatevectorSampler, StatevectorEstimator
+from qiskit.quantum_info import Pauli, SparsePauliOp
 import numpy as np
 from math import pi
 import scipy
@@ -102,34 +103,37 @@ H = generate_user_in_circle_multipath(Nt, d, r_circle_min, r_circle_max, fc, N_u
         
 # %% Encoding Quantum
 class QuantumCircuit:
-    def __init__(self,n_qubits,backend,shots):
+    def __init__(self,n_qubits,shots):
         #--Circuit definition---
         self._circuit = qiskit.QuantumCircuit(n_qubits)
         
         all_qubits = [i for i in range(n_qubits)]
         
-        self.theta_real = qiskit.circuit.Parameter("theta real")
-        self.theta_imag = qiskit.circuit.Parameter("theta imag")
+        self.real_params = [Parameter(f"real_{i}") for i in range (n_qubits)]
+        self.imag_params = [Parameter((f"imag_{i}")) for i in range (n_qubits)]
+        # self.theta_real = qiskit.circuit.Parameter("theta real")
+        # self.theta_imag = qiskit.circuit.Parameter("theta imag")
         self._circuit.h(all_qubits)
         self._circuit.barrier()
         
-        self._circuit.ry(self.theta_real, all_qubits)
-        self._circuit.rz(self.theta_imag, all_qubits)
+        for i in range(n_qubits):
+            self._circuit.ry(self.real_params[i], i)
+            self._circuit.rz(self.imag_params[i], i)
+            
         self._circuit.measure_all()
-        
-        self.backend = backend
         self.shots = shots
         self.draw = self._circuit.draw()
     
         
     def run(self, theta_real, theta_imag):
-        #sampler = SamplerV2()
-    
-        params = np.hstack((theta_real.T, theta_imag.T))
         sampler = StatevectorSampler()
-        sampler_pub = [(self._circuit, params, self.shots)]
-        job = sampler.run(sampler_pub)
-        
+        real_v = theta_real
+        imag_v = theta_imag
+        params = {f"real_{i}": real_v[i] for i in range(len(theta_real))}
+        params.update( {f"imag_{i}": imag_v[i] for i in range(len(theta_imag))})
+       
+
+        job = sampler.run( [(self._circuit, params)], shots = self.shots)
         result = job.result()
         counts = result[0].data.meas.get_counts()
         
@@ -144,17 +148,39 @@ class QuantumCircuit:
         # expectation = np.sum(states*probabilities)
         return counts
     
+    def run_estimate(self, theta_real, theta_imag):
+        
+        #sampler = StatevectorSampler()
+        real_v = np.linspace(-np.pi, np.pi, 4).tolist()
+        imag_v = np.linspace(-4 * np.pi, 4 * np.pi, 4).tolist()
+        
+        params = {f"real_{i}": real_v[i] for i in range(len(theta_real))}
+        params.update({f"imag_{i}": imag_v[i] for i in range(len(theta_imag))})
+        
+        observables = [[Pauli("YZYZ")],
+                       [SparsePauliOp(["IIII", "XXYY"], [0.5, 0.5])]
+                       ]
+        
+        estimator =StatevectorEstimator()
+        
+        pub =(self._circuit, observables, params)
+        job = estimator.run([pub])
+        result = job.result()[0]
+        return result
 # %% Test encoding 
         
-inputs = np.reshape(H,(-1,1))
-backend = Aer.get_backend("aer_simulator")
-shots = 50
-qc =QuantumCircuit(np.size(inputs), backend, shots)
+input_og = np.reshape(H,(-1,1))
+inputs = np.round(input_og, 5)
+# backend = Aer.get_backend("aer_simulator")
+shots = 1024
+qc =QuantumCircuit(np.size(inputs), shots)
 qc.draw
 
 inputs_real = np.array([np.real(inputs[:,0])])
 inputs_imag = np.array([np.imag(inputs[:,0])])
-counts = qc.run(inputs_real, inputs_imag)
+counts = qc.run(inputs_real[0].tolist(),inputs_imag[0].tolist())
+#estimator = qc.run_estimate(inputs_real[0].tolist(),inputs_imag[0].tolist())
+#estmate_v = estimator.data.stds
 #result =qc.run(inputs_real,inputs_imag)
 # %% calculate 
 
@@ -165,6 +191,4 @@ dict_prob = dict(zip(int_key_dict, prob.tolist()[0]))
 
 plot_histogram(counts, sort='value_desc')
 # %%
-
-
 plot_histogram(dict_prob, sort='value_desc')
