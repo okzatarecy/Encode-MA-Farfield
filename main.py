@@ -2,8 +2,9 @@
 """
 Created on Fri Feb 14 14:22:51 2025
 
-@author: gfrpurba
+@author: okzatarecy
 """
+
 import qiskit
 from qiskit.circuit import Parameter
 from qiskit import QuantumRegister, ClassicalRegister
@@ -137,15 +138,6 @@ class QuantumCircuit:
         result = job.result()
         counts = result[0].data.meas.get_counts()
         
-        # #get and display result
-        # result_ideal = job.result()
-        # counts_ideal = result_ideal[0].data.meas.get_counts()
-        # counts = np.array(list(counts_ideal.value()))
-        # states = np.array(list(counts_ideal.key())).astype(float)
-        
-        # #compute probabilities for each state
-        # probabilities = counts / self.shots
-        # expectation = np.sum(states*probabilities)
         return counts
     
     def run_estimate(self, theta_real, theta_imag):
@@ -157,8 +149,8 @@ class QuantumCircuit:
         params = {f"real_{i}": real_v[i] for i in range(len(theta_real))}
         params.update({f"imag_{i}": imag_v[i] for i in range(len(theta_imag))})
         
-        observables = [[Pauli("YZYZ")],
-                       [SparsePauliOp(["IIII", "XXYY"], [0.5, 0.5])]
+        observables = [[Pauli("IIII")]
+                       #[SparsePauliOp(["IIII", "XXYY"], [0.5, 0.5])]
                        ]
         
         estimator =StatevectorEstimator()
@@ -179,8 +171,8 @@ qc.draw
 inputs_real = np.array([np.real(inputs[:,0])])
 inputs_imag = np.array([np.imag(inputs[:,0])])
 counts = qc.run(inputs_real[0].tolist(),inputs_imag[0].tolist())
-#estimator = qc.run_estimate(inputs_real[0].tolist(),inputs_imag[0].tolist())
-#estmate_v = estimator.data.stds
+# estimator = qc.run_estimate(inputs_real[0].tolist(),inputs_imag[0].tolist())
+# estmate_v = estimator.data.stds
 #result =qc.run(inputs_real,inputs_imag)
 # %% calculate 
 
