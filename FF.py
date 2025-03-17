@@ -309,10 +309,10 @@ expected, sampler = Q_sampler_est(N_user, H_real, H_imag, w_1, w_2, w_3, w_4, 40
         
         qc1.barrier()
         
-        qc1.u(w_1, w_2, w_3, q[0])
-        qc1.u(w_1, w_2, w_3, q[1])
-        qc1.u(w_1, w_2, w_3, q[2])
-        qc1.u(w_1, w_2, w_3, q[3])
+        qc1.u(w_1, 0, 0, q[0])
+        qc1.u(w_2, 0, 0, q[1])
+        qc1.u(w_3, 0, 0, q[2])
+        qc1.u(w_4, 0, 0, q[3])
         qc1.barrier()
         
         qc1.measure(q[0], c[0]) 
@@ -355,7 +355,7 @@ expected, sampler = Q_sampler_est(N_user, H_real, H_imag, w_1, w_2, w_3, w_4, 40
 
 # %% function loss
 
-    def loss(N_user, N_ant, H, w_1, w_2, w_3, w_4):
+    def loss(N_user, N_ant, H_real, H_imag, w_1, w_2, w_3, w_4):
         
         qc1, counts_sam,out, out1, out2, out3, out4 = Q_sampler_est(N_user, H_real, H_imag, w_1, w_2, w_3, w_4, shots)
         ptx = 5;
@@ -376,5 +376,86 @@ expected, sampler = Q_sampler_est(N_user, H_real, H_imag, w_1, w_2, w_3, w_4, 40
         return loss
 # %%
     
-loss = loss(N_user, Nt, H, w_1, w_2, w_3, w_4)
+loss_try = loss(N_user, Nt, H_real, H_imag, w_1, w_2, w_3, w_4)
     
+# %% gradient calculation
+
+    def gradient(N_user, N_ant, H_real, H_imag, w_1, w_2, w_3, w_4, w_index):
+        
+        shift = np.pi/2
+        
+        w = np.array([w_1, w_2, w_3, w_4])
+        
+        w_min = w
+        w_plus = w
+        
+        w_min[w_index] = w_min[w_index] - shift
+        loss_min = loss(N_user, N_ant, H_real, H_imag, w_min[0], w_min[1], w_min[2], w_min[3])
+        
+        w_plus[w_index] = w_plus[w_index] + shift
+        loss_plus = loss(N_user, N_ant, H_real, H_imag, w_plus[0], w_plus[1], w_plus[2], w_plus[3])
+        
+        grad = (1/2*np.sin(shift)) * (loss_min-loss_plus)
+        
+        return grad, loss_min, loss_plus
+       
+# %%
+    w_1 = np.pi
+    w_2 = np.pi
+    w_3 = np.pi
+    w_4 = np.pi
+    
+    grad_1, loss_min, loss_plus = gradient(N_user, Nt, H_real, H_imag, w_1, w_2, w_3, w_4, 1)
+# %%
+    
+N_eps = 5
+
+N_data = 2
+learn_step = 0.1
+
+w_1 = np.pi
+w_2 = np.pi
+w_3 = np.pi
+w_4 = np.pi
+
+w = np.array([ w_1, w_2, w_3, w_4 ])
+
+learn_step_init = learn_step
+
+
+H_sample_real =[]
+H_sample_imag = []
+for kk in np.arange(N_data):
+    
+    H_samp = generate_user_in_circle_multipath(Nt, d, r_circle_min, r_circle_max, fc, N_user, sigma_aod, L, kappa)
+    inputs= np.reshape(H_samp,(-1,1))
+    inputs = np.round(input_og, 5)
+    H_real = np.real(inputs).flatten()
+    H_imag = np.imag(inputs).flatten()
+    
+    H_sample_real.append(H_real)
+    H_sample_imag.append(H_imag)
+    print(H_sample_real)
+    print(H_sample_imag)
+    
+loss_mean_array = []
+for i_eps in range(N_eps):
+    
+    loss_array = []
+    
+    for i_data in range(N_data):
+        
+        for i_weight in range(len(w)):
+            
+            grad = gradient(N_user, Nt, H_sample_real[i_data], H_sample_imag[i_data], w[0], w[1], w[2], w[3], i_weight)
+            
+            learn_step = learn_step_init / np.sqrt(i_eps+1)
+            
+            w[i_weight] = w[i_weight] - ((learn_step)*grad)
+            
+            
+        loss_cal = loss(N_user, Nt, H_sample_real[i_data], H_sample_imag[i_data], w[0], w[1], w[2], w[3])
+        
+        loss_array.append(loss_cal)
+        
+    loss_mean_array.append(np.mean(loss_array))
