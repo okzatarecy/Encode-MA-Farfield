@@ -101,31 +101,31 @@ H = generate_user_in_circle_multipath(Nt, d, r_circle_min, r_circle_max, fc, N_u
 
 # %% quantum circuit preparation
 
-def Q_encode(N_user, H_real, H_imag, w_1, w_2, w_3, w_4):
+# def Q_encode(N_user, H_real, H_imag, w_1, w_2, w_3, w_4):
     
-    q = QuantumRegister(4, 'q')
-    c = ClassicalRegister(4, 'c')
-    qc1= QuantumCircuit(q,c)
+#     q = QuantumRegister(4, 'q')
+#     c = ClassicalRegister(4, 'c')
+#     qc1= QuantumCircuit(q,c)
     
-    for k in range(N_user*2):
-        qc1.h(q[k])
+#     for k in range(N_user*2):
+#         qc1.h(q[k])
         
-    qc1.barrier()
+#     qc1.barrier()
     
-    for k in range(N_user*2):
-        qc1.ry(H_real[k], q[k])
+#     for k in range(N_user*2):
+#         qc1.ry(H_real[k], q[k])
         
-    for i in range(N_user*2):
-        qc1.rz(H_imag[i], q[i])
+#     for i in range(N_user*2):
+#         qc1.rz(H_imag[i], q[i])
         
-    qc1.measure(q[0], c[0]) 
-    qc1.measure(q[1], c[1]) 
-    qc1.measure(q[2], c[2]) 
-    qc1.measure(q[3], c[3])    
-    # qc1.measure_all()
+#     qc1.measure(q[0], c[0]) 
+#     qc1.measure(q[1], c[1]) 
+#     qc1.measure(q[2], c[2]) 
+#     qc1.measure(q[3], c[3])    
+#     # qc1.measure_all()
         
         
-    return qc1
+#     return qc1
     
 # %% QC decode sampler
 
@@ -209,195 +209,195 @@ def Q_encode(N_user, H_real, H_imag, w_1, w_2, w_3, w_4):
     # plot_histogram(counts, sort='value_desc')
 
 # %%
-    w_1 = 0
-    w_2 = 0
-    w_3 = 0
-    w_4 = 0
+w_1 = 0
+w_2 = 0
+w_3 = 0
+w_4 = 0
     
-    input_og = np.reshape(H,(-1,1))
-    inputs = np.round(input_og, 5)
-    H_real = np.real(inputs).flatten()
-    H_imag = np.imag(inputs).flatten()
+input_og = np.reshape(H,(-1,1))
+inputs = np.round(input_og, 5)
+H_real = np.real(inputs).flatten()
+H_imag = np.imag(inputs).flatten()
 
-    def Q_sampler_est(N_user, H_real, H_imag, w_1, w_2, w_3, w_4, shots):
+def Q_sampler_est(N_user, H_real, H_imag, w_1, w_2, w_3, w_4, shots):
         
-        q = QuantumRegister(4, 'q')
-        c = ClassicalRegister(4, 'c')
-        qc1= QuantumCircuit(q)
+    q = QuantumRegister(4, 'q')
+    c = ClassicalRegister(4, 'c')
+    qc1= QuantumCircuit(q)
         
-        for k in range(N_user*2):
-            qc1.h(q[k])
+    for k in range(N_user*2):
+        qc1.h(q[k])
             
-        qc1.barrier()
+    qc1.barrier()
         
-        for k in range(N_user*2):
-            qc1.ry(H_real[k], q[k])
+    for k in range(N_user*2):
+        qc1.ry(H_real[k], q[k])
             
-        for i in range(N_user*2):
-            qc1.rz(H_imag[i], q[i])
+    for i in range(N_user*2):
+        qc1.rz(H_imag[i], q[i])
         
-        observables = [[Pauli("ZIII")],
-                       [Pauli("IZII")],
-                       [Pauli("IIZI")],
-                       [Pauli("IIII")]
+    observables = [[Pauli("ZIII")],
+                   [Pauli("IZII")],
+                   [Pauli("IIZI")],
+                   [Pauli("IIII")]
                        #[SparsePauliOp(["IIII", "XXYY"], [0.5, 0.5])]
                        ]
         
-        estimator =StatevectorEstimator()
+    estimator =StatevectorEstimator()
         
-        pub_est = (qc1, observables)
-        job_est = estimator.run([pub_est])
-        result_est = job_est.result()[0]
+    pub_est = (qc1, observables)
+    job_est = estimator.run([pub_est])
+    result_est = job_est.result()[0]
         
-        result_est = result_est.data.evs
+    result_est = result_est.data.evs
          
-        qc1.measure_all()
+    qc1.measure_all()
             
-        sampler = StatevectorSampler()
+    sampler = StatevectorSampler()
         
-        params = {f"real_{i}": H_real[i] for i in range(len(H_real))}
-        params.update( {f"imag_{i}": H_imag[i] for i in range(len(H_imag))})
+    params = {f"real_{i}": H_real[i] for i in range(len(H_real))}
+    params.update( {f"imag_{i}": H_imag[i] for i in range(len(H_imag))})
         
-        job_sam = sampler.run( [(qc1)], shots = shots)
-        result_sam = job_sam.result()
-        counts_sam = result_sam[0].data.meas.get_counts()
+    job_sam = sampler.run( [(qc1)], shots = shots)
+    result_sam = job_sam.result()
+    counts_sam = result_sam[0].data.meas.get_counts()
         
-        return result_est, counts_sam
+    return result_est, counts_sam
 
 expected, sampler = Q_sampler_est(N_user, H_real, H_imag, w_1, w_2, w_3, w_4, 4096)
-# plot_histogram(sampler, sort='value_desc')
+plot_histogram(sampler, sort='value_desc')
 
 # %%
-    w_1 = 0
-    w_2 = 0
-    w_3 = 0
-    w_4 = 0
-    shots = 1024
-    
-    input_og = np.reshape(H,(-1,1))
-    inputs = np.round(input_og, 5)
-    H_real = np.real(inputs).flatten()
-    H_imag = np.imag(inputs).flatten()
-    
-    def ave_meas(count):
-        total = count.get('0', 0) + count.get('1', 0)
-        return count.get('1', 0) / total if total > 0 else 0
 
-    def Q_sampler_est(N_user, H_real, H_imag, w_1, w_2, w_3, w_4, shots):
+    
+def ave_meas(count):
+     total = count.get('0', 0) + count.get('1', 0)
+     return count.get('1', 0) / total if total > 0 else 0
+
+def Q_sampler_est(N_user, H_real, H_imag, w_1, w_2, w_3, w_4, shots):
         
-        q = QuantumRegister(4, 'q')
-        c = ClassicalRegister(4, 'c')
-        qc1= QuantumCircuit(q,c)
+    q = QuantumRegister(4, 'q')
+    c = ClassicalRegister(4, 'c')
+    qc1= QuantumCircuit(q,c)
         
-        for k in range(N_user*2):
-            qc1.h(q[k])
+    for k in range(N_user*2):
+        qc1.h(q[k])
             
-        qc1.barrier()
+    qc1.barrier()
         
-        for k in range(N_user*2):
-            qc1.ry(H_real[k], q[k])
+    for k in range(N_user*2):
+        qc1.ry(H_real[k], q[k])
             
-        for i in range(N_user*2):
-            qc1.rz(H_imag[i], q[i])
+    for i in range(N_user*2):
+        qc1.rz(H_imag[i], q[i])
         
-        qc1.barrier()
+    qc1.barrier()
         
-        qc1.cx(q[0], q[1])
-        qc1.cx(q[1], q[2])
-        qc1.cx(q[2], q[3])
-        qc1.cx(q[3], q[0])       
+    qc1.cx(q[0], q[1])
+    qc1.cx(q[1], q[2])
+    qc1.cx(q[2], q[3])
+    qc1.cx(q[3], q[0])       
         
-        qc1.barrier()
+    qc1.barrier()
         
-        qc1.u(w_1, 0, 0, q[0])
-        qc1.u(w_2, 0, 0, q[1])
-        qc1.u(w_3, 0, 0, q[2])
-        qc1.u(w_4, 0, 0, q[3])
-        qc1.barrier()
+    qc1.u(w_1, 0, 0, q[0])
+    qc1.u(w_2, 0, 0, q[1])
+    qc1.u(w_3, 0, 0, q[2])
+    qc1.u(w_4, 0, 0, q[3])
+    qc1.barrier()
         
-        qc1.measure(q[0], c[0]) 
-        qc1.measure(q[1], c[1]) 
-        qc1.measure(q[2], c[2]) 
-        qc1.measure(q[3], c[3])    
+    qc1.measure(q[0], c[0]) 
+    qc1.measure(q[1], c[1]) 
+    qc1.measure(q[2], c[2]) 
+    qc1.measure(q[3], c[3])    
         
-        sampler = StatevectorSampler()
+    sampler = StatevectorSampler()
         
-        job_sam = sampler.run( [(qc1)], shots = shots)
-        result_sam = job_sam.result()
-        counts_sam = result_sam[0].data.c.get_counts()
+    job_sam = sampler.run( [(qc1)], shots = shots)
+    result_sam = job_sam.result()
+    counts_sam = result_sam[0].data.c.get_counts()
         
-        simp_counts_01 = marginal_counts(counts_sam, indices=[3])
-        simp_counts_02 = marginal_counts(counts_sam, indices=[2])
-        simp_counts_03 = marginal_counts(counts_sam, indices=[1])
-        simp_counts_04 = marginal_counts(counts_sam, indices=[0])
+    simp_counts_01 = marginal_counts(counts_sam, indices=[3])
+    simp_counts_02 = marginal_counts(counts_sam, indices=[2])
+    simp_counts_03 = marginal_counts(counts_sam, indices=[1])
+    simp_counts_04 = marginal_counts(counts_sam, indices=[0])
         # counts_sam = result_sam[0].data.c.get_counts()
         
-        out1 = ave_meas(simp_counts_01)
-        out2 = ave_meas(simp_counts_02)
-        out3 = ave_meas(simp_counts_03)
-        out4 = ave_meas(simp_counts_04)
+    out1 = ave_meas(simp_counts_01)
+    out2 = ave_meas(simp_counts_02)
+    out3 = ave_meas(simp_counts_03)
+    out4 = ave_meas(simp_counts_04)
         
-        out = [simp_counts_01, simp_counts_02, simp_counts_03, simp_counts_04]
+    out = [simp_counts_01, simp_counts_02, simp_counts_03, simp_counts_04]
 
-        return qc1, counts_sam, out, out1, out2, out3, out4
+    return qc1, counts_sam, out, out1, out2, out3, out4
 # %%
-   
-        qc1, counts_sam,out, out1, out2, out3, out4 = Q_sampler_est(N_user, H_real, H_imag, w_1, w_2, w_3, w_4, shots)
-        qc1.draw()
-        plot_histogram(counts_sam, sort='value_desc')
+w_1 = 0 
+w_2 = 0
+w_3 = 0
+w_4 = 0
+shots = 1024
+    
+input_og = np.reshape(H,(-1,1))
+inputs = np.round(input_og, 5)
+H_real = np.real(inputs).flatten()
+H_imag = np.imag(inputs).flatten()   
+qc1, counts_sam,out, out1, out2, out3, out4 = Q_sampler_est(N_user, H_real, H_imag, w_1, w_2, w_3, w_4, shots)
+qc1.draw()
+plot_histogram(counts_sam, sort='value_desc')
 # %%
 
-        print("measurement_average_01 =",out1)
-        print("measurement_average_02 =",out2)
-        print("measurement_average_03 =",out3)
-        print("measurement_average_04 =",out4)
+print("measurement_average_01 =",out1)
+print("measurement_average_02 =",out2)
+print("measurement_average_03 =",out3)
+print("measurement_average_04 =",out4)
 # expected, sampler = Q_sampler_est(N_user, H_real, H_imag, w_1, w_2, w_3, w_4, 4096)
 
 # %% function loss
 
-    def loss(N_user, N_ant, H_real, H_imag, w_1, w_2, w_3, w_4):
+def loss(N_user, N_ant, H_real, H_imag, w_1, w_2, w_3, w_4):
         
-        qc1, counts_sam,out, out1, out2, out3, out4 = Q_sampler_est(N_user, H_real, H_imag, w_1, w_2, w_3, w_4, shots)
-        ptx = 5;
-        sigma_n = 1;
-        v1 = np.array([np.exp(1j*out1), np.exp(1j*out3)])
-        v2 = np.array([np.exp(1j*out2), np.exp(1j*out4)])
+    qc1, counts_sam,out, out1, out2, out3, out4 = Q_sampler_est(N_user, H_real, H_imag, w_1, w_2, w_3, w_4, shots)
+    ptx = 5;
+    sigma_n = 1;
+    v1 = np.array([np.exp(1j*out1), np.exp(1j*out3)])       #precoding s.t opt out 2 antenna for user 1
+    v2 = np.array([np.exp(1j*out2), np.exp(1j*out4)])       #precoding s.t opt out 2 antenna for user 1
         
-        SNR_1 = ptx*np.abs(H[0,:]@v1)**2/sigma_n
-        SNR_2 = ptx*np.abs(H[1,:]@v2)**2/sigma_n
-        R_k1 = np.log2(1+SNR_1)
-        R_k2 = np.log2(1+SNR_2)
-        print(R_k1)
-        print(R_k2)
+    SNR_1 = ptx*np.abs(H[0,:]@v1)**2/sigma_n
+    SNR_2 = ptx*np.abs(H[1,:]@v2)**2/sigma_n
+    R_k1 = np.log2(1+SNR_1)
+    R_k2 = np.log2(1+SNR_2)
+        # print(R_k1)
+        # print(R_k2)
         
-        Rsum = R_k1+R_k2
+    Rsum = R_k1+R_k2
         
-        loss = -Rsum
-        return loss
+    loss = -Rsum
+    return loss
 # %%
     
 loss_try = loss(N_user, Nt, H_real, H_imag, w_1, w_2, w_3, w_4)
     
 # %% gradient calculation
 
-    def gradient(N_user, N_ant, H_real, H_imag, w_1, w_2, w_3, w_4, w_index):
+def gradient(N_user, N_ant, H_real, H_imag, w_1, w_2, w_3, w_4, w_index):
         
-        shift = np.pi/2
+    shift = np.pi/2
         
-        w = np.array([w_1, w_2, w_3, w_4])
+    w = np.array([w_1, w_2, w_3, w_4])
         
-        w_min = w
-        w_plus = w
+    w_min = w
+    w_plus = w
         
-        w_min[w_index] = w_min[w_index] - shift
-        loss_min = loss(N_user, N_ant, H_real, H_imag, w_min[0], w_min[1], w_min[2], w_min[3])
+    w_min[w_index] = w_min[w_index] - shift
+    loss_min = loss(N_user, N_ant, H_real, H_imag, w_min[0], w_min[1], w_min[2], w_min[3])
         
-        w_plus[w_index] = w_plus[w_index] + shift
-        loss_plus = loss(N_user, N_ant, H_real, H_imag, w_plus[0], w_plus[1], w_plus[2], w_plus[3])
+    w_plus[w_index] = w_plus[w_index] + shift
+    loss_plus = loss(N_user, N_ant, H_real, H_imag, w_plus[0], w_plus[1], w_plus[2], w_plus[3])
         
-        grad = (1/2*np.sin(shift)) * (loss_min-loss_plus)
+    grad = (1/2*np.sin(shift)) * (loss_min-loss_plus)
         
-        return grad, loss_min, loss_plus
+    return grad, loss_min, loss_plus
        
 # %%
     w_1 = np.pi
@@ -407,10 +407,10 @@ loss_try = loss(N_user, Nt, H_real, H_imag, w_1, w_2, w_3, w_4)
     
     grad_1, loss_min, loss_plus = gradient(N_user, Nt, H_real, H_imag, w_1, w_2, w_3, w_4, 1)
 # %%
-    
-N_eps = 5
+from matplotlib.pylab import plt
+N_eps = 1000
 
-N_data = 2
+N_data = 400
 learn_step = 0.1
 
 w_1 = np.pi
@@ -428,15 +428,15 @@ H_sample_imag = []
 for kk in np.arange(N_data):
     
     H_samp = generate_user_in_circle_multipath(Nt, d, r_circle_min, r_circle_max, fc, N_user, sigma_aod, L, kappa)
-    inputs= np.reshape(H_samp,(-1,1))
-    inputs = np.round(input_og, 5)
+    inputs_og = np.reshape(H_samp,(-1,1))
+    inputs = np.round(inputs_og, 5)
     H_real = np.real(inputs).flatten()
     H_imag = np.imag(inputs).flatten()
     
     H_sample_real.append(H_real)
     H_sample_imag.append(H_imag)
-    print(H_sample_real)
-    print(H_sample_imag)
+    # print(H_sample_real)
+    # print(H_sample_imag)
     
 loss_mean_array = []
 for i_eps in range(N_eps):
@@ -447,7 +447,7 @@ for i_eps in range(N_eps):
         
         for i_weight in range(len(w)):
             
-            grad = gradient(N_user, Nt, H_sample_real[i_data], H_sample_imag[i_data], w[0], w[1], w[2], w[3], i_weight)
+            grad, loss_min, loss_plus = gradient(N_user, Nt, H_sample_real[i_data], H_sample_imag[i_data], w[0], w[1], w[2], w[3], i_weight)
             
             learn_step = learn_step_init / np.sqrt(i_eps+1)
             
@@ -459,3 +459,13 @@ for i_eps in range(N_eps):
         loss_array.append(loss_cal)
         
     loss_mean_array.append(np.mean(loss_array))
+    
+
+plt.plot(loss_mean_array, label='QNN Loss, $N_{data}=50$')
+plt.grid(True)
+plt.title('QNN Loss')
+plt.xlabel('Episode')
+plt.ylabel('Loss')
+
+plt.legend(loc='best')
+plt.show()
