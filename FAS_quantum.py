@@ -226,25 +226,25 @@ qc1.draw()
 plot_histogram(counts_sam, sort='value_desc')
 
 # %% loss function
-
-def loss(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, shots):
-    qc1, counts_sam,out, out1, out2, out3, out4, out5, out6 = Q_sampler_est(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots)
-    ptx = 5
-    sigma_n = 1
+ptx = 5
+# def loss(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, shots):
+#     qc1, counts_sam,out, out1, out2, out3, out4, out5, out6 = Q_sampler_est(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots)
+#     ptx = 5
+#     sigma_n = 1
     
-    v1 = np.exp(1j*(out1+out4))
-    v2 = np.exp(1j*(out2+out5))
-    v3 = np.exp(1j*(out3+out6))
+#     v1 = np.exp(1j*(out1+out4))
+#     v2 = np.exp(1j*(out2+out5))
+#     v3 = np.exp(1j*(out3+out6))
     
-    V = np.array([v1, v2, v3])
-    cap_P1 = np.log2(1+(ptx*np.abs(ch_gen[0,:]@v1)**2/sigma_n))
-    cap_P2 = np.log2(1+(ptx*np.abs(ch_gen[1,:]@V)**2/sigma_n))
-    print(cap_P1)
-    # print(cap_P2)
-    # print(cap_P1+cap_P2)
-    return loss
+#     V = np.array([v1, v2, v3])
+#     cap_P1 = np.log2(1+(ptx*np.abs(ch_gen[0,:]@v1)**2/sigma_n))
+#     cap_P2 = np.log2(1+(ptx*np.abs(ch_gen[1,:]@V)**2/sigma_n))
+#     print(cap_P1)
+#     # print(cap_P2)
+#     # print(cap_P1+cap_P2)
+#     return loss
 
-los = loss(h_ch, H_real_pick, H_imag_pick, w_1, w_2, w_3, w_4, shots=1024)
+# los = loss(h_ch, H_real_pick, H_imag_pick, w_1, w_2, w_3, w_4, shots=1024)
 # %%
 def loss(h_ch, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6):
     
@@ -260,7 +260,7 @@ def loss(h_ch, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6):
     # Ambil nilai berdasarkan indeks yang sudah diurutkan
     P = Q[indices]
 
-    print(P)
+    # print(P)
     
     V = np.array([np.exp(1j*(np.sum(P)))])
     
@@ -268,13 +268,42 @@ def loss(h_ch, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6):
     #h_recon = np.zeros_like(h_ch)
     #[indices] = h_max
     
-    cap = ptx*np.abs(h_max[:,0] * V)**2/sigma_n
+    cap = ptx*np.abs(h_max @ V)**2/sigma_n
     rate= np.log2(1+cap)
+    sum_rate = np.sum(rate)
     #cap_P2 = np.log2(1+(ptx*np.abs(ch_gen[1,:]@V)**2/sigma_n))
     # print(cap_P2)
     # print(cap_P1+cap_P2)
     
-    loss = -(cap)
+    loss = -(sum_rate)
     return loss
 
 los = loss(h_ch, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6)
+
+# %%
+
+def gradient(h_ch, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, w_index):
+        
+    shift = np.pi/2
+        
+    w = np.array([w_1, w_2, w_3, w_4, w_5, w_6])
+        
+    w_min = w
+    w_plus = w
+        
+    w_min[w_index] = w_min[w_index] - shift
+    loss_min = loss(h_ch, H_real, H_imag, w_min[0], w_min[1], w_min[2], w_min[3], w_min[4], w_min[5])
+        
+    w_plus[w_index] = w_plus[w_index] + shift
+    loss_plus = loss(h_ch, H_real, H_imag, w_plus[0], w_plus[1], w_plus[2], w_plus[3], w_plus[4], w_plus[5])
+        
+    grad = (1/2*np.sin(shift)) * (loss_min-loss_plus)
+        
+    return grad, loss_min, loss_plus
+
+w_1 = np.pi
+w_2 = np.pi
+w_3 = np.pi
+w_4 = np.pi
+
+grad_1, loss_min, loss_plus = gradient(h_ch, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, 1)
