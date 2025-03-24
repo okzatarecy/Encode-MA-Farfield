@@ -164,19 +164,29 @@ def Q_sampler_est(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots):
         
     qc1.barrier()
     
-    for k in range(H_real.size-2):    
-        qc1.cx(q[k], q[k+1])
+    qc1.cx(q[0], q[1])
+    qc1.cx(q[1], q[2])
+    qc1.cx(q[2], q[3])
+    qc1.cx(q[3], q[4])
+    qc1.cx(q[5], q[0])
+    # for k in range(H_real.size-2):    
+    #     qc1.cx(q[k], q[k+1])
 
-    qc1.cx(q[H_real.size-1], q[0])
-        
+    # qc1.cx(q[H_real.size-1], q[0])
     qc1.barrier()
         
-    qc1.u(w_1, 0, 0, q[0])
-    qc1.u(w_2, 0, 0, q[1])
-    qc1.u(w_3, 0, 0, q[2])
-    qc1.u(w_4, 0, 0, q[3])
-    qc1.u(w_5, 0, 0, q[4])
-    qc1.u(w_6, 0, 0, q[5])
+    # qc1.u(w_1, 0, 0, q[0])
+    # qc1.u(w_2, 0, 0, q[1])
+    # qc1.u(w_3, 0, 0, q[2])
+    # qc1.u(w_4, 0, 0, q[3])
+    # qc1.u(w_5, 0, 0, q[4])
+    # qc1.u(w_6, 0, 0, q[5])
+    qc1.ry(w_1, q[0])
+    qc1.ry(w_2, q[1])
+    qc1.ry(w_3, q[2])
+    qc1.ry(w_4, q[3])
+    qc1.ry(w_5, q[4])
+    qc1.ry(w_6, q[5])
     qc1.barrier()
         
     qc1.measure(q[0], c[0]) 
@@ -192,12 +202,12 @@ def Q_sampler_est(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots):
     result_sam = job_sam.result()
     counts_sam = result_sam[0].data.c.get_counts()
         
-    simp_counts_01 = marginal_counts(counts_sam, indices=[5])
-    simp_counts_02 = marginal_counts(counts_sam, indices=[4])
-    simp_counts_03 = marginal_counts(counts_sam, indices=[3])
-    simp_counts_04 = marginal_counts(counts_sam, indices=[2])
-    simp_counts_05 = marginal_counts(counts_sam, indices=[1])
-    simp_counts_06 = marginal_counts(counts_sam, indices=[0])
+    simp_counts_01 = marginal_counts(counts_sam, indices=[0])
+    simp_counts_02 = marginal_counts(counts_sam, indices=[1])
+    simp_counts_03 = marginal_counts(counts_sam, indices=[2])
+    simp_counts_04 = marginal_counts(counts_sam, indices=[3])
+    simp_counts_05 = marginal_counts(counts_sam, indices=[4])
+    simp_counts_06 = marginal_counts(counts_sam, indices=[5])
         # counts_sam = result_sam[0].data.c.get_counts()
         
     out1 = ave_meas(simp_counts_01)
@@ -249,7 +259,7 @@ ptx = 5
 def loss(h_ch, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6):
     
     qc1, counts_sam,out, out1, out2, out3, out4, out5, out6 = Q_sampler_est(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots=1024)
-    ptx = 5
+    ptx = 1
     sigma_n = 1
     
     Q = np.array([out1, out2, out3, out4, out5, out6])
@@ -342,16 +352,15 @@ h_ch, H_sample_real, H_sample_imag = ch_simp(N_port, N_sample, WL)
 
 # %%
 
-N_eps = 400
-N_data = 50
+N_eps = 100
+N_data = 50 
 learn_step = 0.1
-
-w_1 = np.pi
-w_2 = np.pi
-w_3 = np.pi
-w_4 = np.pi
-w_5 = np.pi
-w_6 = np.pi
+w_1 = 4.5
+w_2 = 4.5
+w_3 = 4.5
+w_4 = 4.5
+w_5 = 4.5
+w_6 = 4.5
 
 w = np.array([w_1, w_2, w_3, w_4, w_5, w_6])
 
@@ -360,6 +369,8 @@ learn_step_init = learn_step
 h_ch, H_sample_real, H_sample_imag = ch_simp(N_port, N_data, WL) 
 
 loss_mean_array =[]
+loss_min_array = []
+loss_max_array = [] 
 for i_eps in range(N_eps):
     loss_array =[]
     for i_data in range(N_data):
@@ -367,7 +378,8 @@ for i_eps in range(N_eps):
         for i_weight in range(len(w)):
             grad, loss_min, loss_plus = gradient(h_ch[:,i_data], H_sample_real[:,i_data], H_sample_imag[:,i_data], w[0], w[1], w[2], w[3], w[4], w[5], i_weight)
             
-            learn_step = learn_step_init / np.sqrt(i_eps+1)
+            #learn_step = learn_step_init / np.sqrt(i_eps+1)
+            learn_step = 0.5 * learn_step_init * (1+np.cos((np.pi*(i_eps+1))/N_eps))
             
             w[i_weight] = w[i_weight] - ((learn_step)*grad)
             
@@ -377,16 +389,38 @@ for i_eps in range(N_eps):
         loss_array.append(loss_cal)
         
     loss_mean_array.append(np.mean(loss_array))
+    loss_min_array.append(np.min(loss_array))
+    loss_max_array.append(np.max(loss_array))
     
+    print("i_episode =",i_eps)
+    print('optimized weight : ', np.array([w])) 
+    print('gradient: ', grad)
     
-plt.plot(loss_mean_array, label='QNN Loss, $N_{data}=50$')
-plt.grid(True)
-plt.title('QNN Loss')
-plt.xlabel('Episode')
-plt.ylabel('Loss')
 
+print('Result - weight cloud : ', np.array([w]))  
+
+    
+# plt.plot(loss_mean_array, label='QNN Loss, $N_{data}=50$')
+# plt.grid(True)
+# plt.title('QNN Loss')
+# plt.xlabel('Episode')
+# plt.ylabel('Loss')
+
+# plt.legend(loc='best')
+# plt.show()
+
+plt.plot(loss_mean_array, label = "QNN, $N_{data}$ = 400")
+plt.fill_between(np.arange(N_eps), loss_max_array, loss_min_array, color='grey', alpha=0.5)
+
+# naming the x axis 
+plt.xlabel('training episode') 
+# naming the y axis 
+plt.ylabel('loss $L_{cloud}$') 
+
+
+plt.grid(True)
+plt.rc('grid', linestyle="dotted", color='grey')
 plt.legend(loc='best')
 plt.show()
-
     
    
