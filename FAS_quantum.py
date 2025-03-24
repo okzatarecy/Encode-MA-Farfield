@@ -85,7 +85,7 @@ N_sample = 1
 W = 0.5
 x = np.sqrt(1/2)*np.random.randn(N_port,N_sample)
 y = np.sqrt(1/2)*np.random.randn(N_port, N_sample)
-print(x,y)
+# print(x,y)
 
 h_ch = np.zeros((N_port,N_sample), dtype=complex)
 mu = np.zeros(N_port)
@@ -268,7 +268,7 @@ def loss(h_ch, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6):
     #h_recon = np.zeros_like(h_ch)
     #[indices] = h_max
     
-    cap = ptx*np.abs(h_max @ V)**2/sigma_n
+    cap = ptx*np.abs(h_max * V)**2/sigma_n
     rate= np.log2(1+cap)
     sum_rate = np.sum(rate)
     #cap_P2 = np.log2(1+(ptx*np.abs(ch_gen[1,:]@V)**2/sigma_n))
@@ -305,5 +305,88 @@ w_1 = np.pi
 w_2 = np.pi
 w_3 = np.pi
 w_4 = np.pi
+w_5 = np.pi
+w_6 = np.pi
 
 grad_1, loss_min, loss_plus = gradient(h_ch, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, 1)
+
+# %% generate simplified channel function
+#
+N_port = 6
+N_sample = 3
+WL = 0.5
+
+def ch_simp(N_port, N_sample, WL):
+    # H_sample_real = []
+    # H_sample_imag = []
+   
+    for i_sample in range(N_sample):
+        x = np.sqrt(1/2)*np.random.randn(N_port,N_sample)
+        y = np.sqrt(1/2)*np.random.randn(N_port,N_sample)
+        h_ch = np.zeros((N_port,N_sample), dtype=complex)
+        mu = np.zeros(N_port)
+        h_ch[0,:] = x[0,:] + 1j*y[0,:]     #reference port
+        mu[0] = 1                       #reference port (mu is spatial correlation between port using bessel func)
+        for i_port in range(1,N_port):
+            mu[i_port] = jv(0, 2*np.pi * (abs((i_port+1)-1)/(N_port-1)) * WL)
+            h_ch[i_port,:] = (np.sqrt(1-mu[i_port]**2) * x[i_port,:] + mu[i_port] * x[0,:] + 
+                            1j*(np.sqrt(1-mu[i_port]**2) * y[i_port,:] + mu[i_port] * y[0,:]))          
+        
+        #inputs = np.round(h_ch[:,i_sample], 5)
+        H_real = np.round(np.real(h_ch),5)
+        H_imag = np.round(np.imag(h_ch),5)
+
+    return h_ch, H_real, H_imag
+
+h_ch, H_sample_real, H_sample_imag = ch_simp(N_port, N_sample, WL)    
+
+# %%
+
+N_eps = 400
+N_data = 50
+learn_step = 0.1
+
+w_1 = np.pi
+w_2 = np.pi
+w_3 = np.pi
+w_4 = np.pi
+w_5 = np.pi
+w_6 = np.pi
+
+w = np.array([w_1, w_2, w_3, w_4, w_5, w_6])
+
+learn_step_init = learn_step
+
+h_ch, H_sample_real, H_sample_imag = ch_simp(N_port, N_data, WL) 
+
+loss_mean_array =[]
+for i_eps in range(N_eps):
+    loss_array =[]
+    for i_data in range(N_data):
+        
+        for i_weight in range(len(w)):
+            grad, loss_min, loss_plus = gradient(h_ch[:,i_data], H_sample_real[:,i_data], H_sample_imag[:,i_data], w[0], w[1], w[2], w[3], w[4], w[5], i_weight)
+            
+            learn_step = learn_step_init / np.sqrt(i_eps+1)
+            
+            w[i_weight] = w[i_weight] - ((learn_step)*grad)
+            
+        
+        loss_cal = loss(h_ch[:,i_data], H_sample_real[:,i_data], H_sample_imag[:,i_data], w[0], w[1], w[2], w[3], w[4], w[5])
+        
+        loss_array.append(loss_cal)
+        
+    loss_mean_array.append(np.mean(loss_array))
+    
+    
+plt.plot(loss_mean_array, label='QNN Loss, $N_{data}=50$')
+plt.grid(True)
+plt.title('QNN Loss')
+plt.xlabel('Episode')
+plt.ylabel('Loss')
+
+plt.legend(loc='best')
+plt.show()
+
+    
+   
