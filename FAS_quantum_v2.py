@@ -1,5 +1,12 @@
 # -*- coding: utf-8 -*-
 """
+Created on Tue Mar 25 18:25:56 2025
+
+@author: orecy
+"""
+
+# -*- coding: utf-8 -*-
+"""
 Created on Tue Mar 18 19:40:33 2025
 
 @author: orecy
@@ -80,42 +87,7 @@ def channel_gen(k_nd_BS, d_BS, k_rmd_U, d_U):
     return ch_gen
 
 ch_gen = channel_gen(k_nd_BS, d_BS, k_rmd_U, d_U)
-# %% Simplified channel model FAS
-N_port = 6
-N_sample = 1
-WL = 0.5
-x = np.sqrt(1/2)*np.random.randn(N_port,N_sample)
-y = np.sqrt(1/2)*np.random.randn(N_port, N_sample)
-# print(x,y)
 
-h_ch = np.zeros((N_port,N_sample), dtype=complex)
-mu = np.zeros(N_port)
-h_ch[0,:] = x[0,:] + 1j*y[0,:]     #reference port
-mu[0] = 1                       #reference port (mu is spatial correlation between port using bessel func)
-for i_sample in range(N_sample):
-    
-    for i_port in range(1,N_port):
-        mu[i_port] = jv(0, 2*np.pi * (abs((i_port+1)-1)/(N_port-1)) * WL)
-        h_ch[i_port,:] = (np.sqrt(1-mu[i_port]**2) * x[i_port,:] + mu[i_port] * x[0,:] + 
-                        1j*(np.sqrt(1-mu[i_port]**2) * y[i_port,:] + mu[i_port] * y[0,:]))
-        
-    
-inputs_og = np.reshape(h_ch,(-1,1))
-inputs = np.round(inputs_og, 5)
-H_real = np.real(inputs).flatten()
-H_imag = np.imag(inputs).flatten()
-# H_real_pick = H_real[0::2]
-# H_imag_pick = H_imag[0::2]
-
-# %%
-
-
-xy = np.vstack((x, y))
-Q = np.cov(mu)
-eigenvalues = np.linalg.eigvals(Q)
-is_psd = np.all(eigenvalues >= 0) # to check is Q a positive semidefinite matrix
-print(is_psd)
-print(Q.shape)
 
 # %% learning
 
