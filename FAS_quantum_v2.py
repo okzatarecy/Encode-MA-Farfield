@@ -34,11 +34,11 @@ c = 3e8
 f = 3e9
 Lambda = c / f
 d_BS = Lambda/2; d_U = Lambda/2
-N = 3 # Number of antennas in Base station
+N = 2 # Number of antennas in Base station
 N_BS = N
-M = 6 # Number of antennas in User
-m0 = 6 # number of ports are selected for signal reception >> bagaiamana cara menentukan jumlah port yang hidup?
-r_m = np.array([1,2,3,4,5,6]); #index of selected ports (example)
+M = 3 # Number of antennas in User
+m0 = 3 # number of ports are selected for signal reception >> bagaiamana cara menentukan jumlah port yang hidup?
+r_m = np.array([1,2,3]); #index of selected ports (example)
 bits = np.random.randint(0, 2, 1000) # Generate 1000 random bits (0 or 1)
 s = 2 * bits - 1  # Map bits to BPSK symbols (-1 or 1)
 z = np.sqrt(1/2) * (np.random.randn(m0) + 1j * np.random.randn(m0))
@@ -87,24 +87,9 @@ def channel_gen(k_nd_BS, d_BS, k_rmd_U, d_U):
     return ch_gen
 
 ch_gen = channel_gen(k_nd_BS, d_BS, k_rmd_U, d_U)
-
-
-# %% learning
-
-# N_data = 1
-# H_sample_real = []
-# H_sample_imag = []
-
-# for i_channel in range(N_data):
-#     ch_gen = channel_gen(k_nd_BS, d_BS, k_rmd_U, d_U)
-
-#     inputs_og = np.reshape(ch_gen,(-1,1))
-#     inputs = np.round(inputs_og, 5)
-#     H_real = np.real(inputs).flatten()
-#     H_imag = np.imag(inputs).flatten()    
-
-#     H_sample_real.append(H_real)
-#     H_sample_imag.append(H_imag)
+h_ch = np.reshape(ch_gen,(-1,1))
+H_real = np.round(np.real(h_ch),5).flatten()
+H_imag = np.round(np.imag(h_ch),5).flatten()
     
 # %%
 w_1 = 0
@@ -124,11 +109,8 @@ def Q_sampler_est(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots):
     c = ClassicalRegister(H_real.size, 'c')
     qc1= QuantumCircuit(q,c)
         
-    for k in range(H_real.size):
-        qc1.h(q[k])
-            
     qc1.barrier()
-        
+    
     for k in range(H_real.size):
         qc1.ry(H_real[k], q[k])
             
@@ -137,23 +119,15 @@ def Q_sampler_est(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots):
         
     qc1.barrier()
     
-    qc1.cx(q[0], q[1])
-    qc1.cx(q[1], q[2])
-    qc1.cx(q[2], q[3])
-    qc1.cx(q[3], q[4])
-    qc1.cx(q[5], q[0])
-    # for k in range(H_real.size-2):    
-    #     qc1.cx(q[k], q[k+1])
+    qc1.cz(q[0], q[1])
+    qc1.cz(q[1], q[2])
+    qc1.cz(q[2], q[3])
+    qc1.cz(q[3], q[4])
+    qc1.cz(q[4], q[5])
 
-    # qc1.cx(q[H_real.size-1], q[0])
     qc1.barrier()
         
-    # qc1.u(w_1, 0, 0, q[0])
-    # qc1.u(w_2, 0, 0, q[1])
-    # qc1.u(w_3, 0, 0, q[2])
-    # qc1.u(w_4, 0, 0, q[3])
-    # qc1.u(w_5, 0, 0, q[4])
-    # qc1.u(w_6, 0, 0, q[5])
+
     qc1.ry(w_1, q[0])
     qc1.ry(w_2, q[1])
     qc1.ry(w_3, q[2])
@@ -206,28 +180,30 @@ print("measurement_average_06 =",out[5])
 # %%
 
 qc1.draw()
-plot_histogram(counts_sam, sort='value_desc')
+# plot_histogram(counts_sam, sort='value_desc')
 
 # %% loss function
-ptx = 5
-# def loss(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, shots):
-#     qc1, counts_sam,out, out1, out2, out3, out4, out5, out6 = Q_sampler_est(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots)
-#     ptx = 5
-#     sigma_n = 1
-    
-#     v1 = np.exp(1j*(out1+out4))
-#     v2 = np.exp(1j*(out2+out5))
-#     v3 = np.exp(1j*(out3+out6))
-    
-#     V = np.array([v1, v2, v3])
-#     cap_P1 = np.log2(1+(ptx*np.abs(ch_gen[0,:]@v1)**2/sigma_n))
-#     cap_P2 = np.log2(1+(ptx*np.abs(ch_gen[1,:]@V)**2/sigma_n))
-#     print(cap_P1)
-#     # print(cap_P2)
-#     # print(cap_P1+cap_P2)
-#     return loss
 
-# los = loss(h_ch, H_real_pick, H_imag_pick, w_1, w_2, w_3, w_4, shots=1024)
+def loss(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots):
+    qc1, counts_sam,out, out1, out2, out3, out4, out5, out6 = Q_sampler_est(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots)
+    ptx = 5
+    sigma_n = 1
+    
+    v1 = np.exp(1j*(out1+out2))
+    v2 = np.exp(1j*(out3+out4))
+    v3 = np.exp(1j*(out5+out6))
+    
+    Q = np.array([v1,v2,v3])
+    V_max = Q[np.argmax(np.abs(Q))]  #looking for biggest magnitude of complex number
+
+    snr = ptx*np.abs(ch_gen * V_max)**2/sigma_n
+
+    print(cap_P1)
+    # print(cap_P2)
+    # print(cap_P1+cap_P2)
+    return loss
+
+los = loss(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6,  shots=1024)
 # %%
 # def loss(h_ch, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6):
     
@@ -350,6 +326,23 @@ def ch_simp(N_port, N_sample, WL):
     return h_ch, H_real, H_imag
 
 h_ch, H_sample_real, H_sample_imag = ch_simp(N_port, N_sample, WL)    
+
+# %%
+
+N_data = 2
+H_sample_real = []
+H_sample_imag = []
+
+for i_channel in range(N_data):
+    ch_gen = channel_gen(k_nd_BS, d_BS, k_rmd_U, d_U)
+
+    inputs_og = np.reshape(ch_gen,(-1,1))
+    inputs = np.round(inputs_og, 5)
+    H_real = np.real(inputs).flatten()
+    H_imag = np.imag(inputs).flatten()    
+
+    H_sample_real.append(H_real)
+    H_sample_imag.append(H_imag)
 
 # %%
 

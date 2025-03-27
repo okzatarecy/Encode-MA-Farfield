@@ -23,7 +23,7 @@ d = lambda_w/2          #distance of elemen antennas [m]
 Nt = 2               #elemen of antennas
 N_user = 2              #number of users
 r_circle_min = 4        #min diameter circle [m]
-r_circle_max = 100      #max diameter circle [m]
+r_circle_max = 200      #max diameter circle [m]
 L = 5                   #number of paths
 kappa_list = np.arange(0.5,10,0.5);
 kappa = kappa_list[0];  #Rician factor
@@ -280,10 +280,10 @@ def Q_sampler_est(N_user, H_real, H_imag, w_1, w_2, w_3, w_4, shots):
     c = ClassicalRegister(4, 'c')
     qc1= QuantumCircuit(q,c)
         
-    for k in range(N_user*2):
-        qc1.h(q[k])
+    # for k in range(N_user*2):
+    #     qc1.h(q[k])
             
-    qc1.barrier()
+    # qc1.barrier()
         
     for k in range(N_user*2):
         qc1.ry(H_real[k], q[k])
@@ -293,17 +293,17 @@ def Q_sampler_est(N_user, H_real, H_imag, w_1, w_2, w_3, w_4, shots):
         
     qc1.barrier()
         
-    qc1.cx(q[0], q[1])
-    qc1.cx(q[1], q[2])
-    qc1.cx(q[2], q[3])
-    qc1.cx(q[3], q[0])       
+    qc1.cz(q[0], q[1])
+    qc1.cz(q[1], q[2])
+    qc1.cz(q[2], q[3])
+    # qc1.cz(q[3], q[4])       
         
     qc1.barrier()
         
-    qc1.u(w_1, 0, 0, q[0])
-    qc1.u(w_2, 0, 0, q[1])
-    qc1.u(w_3, 0, 0, q[2])
-    qc1.u(w_4, 0, 0, q[3])
+    qc1.rz(w_1, q[0])
+    qc1.rz(w_2, q[1])
+    qc1.rz(w_3, q[2])
+    qc1.rz(w_4, q[3])
     qc1.barrier()
         
     qc1.measure(q[0], c[0]) 
@@ -317,10 +317,10 @@ def Q_sampler_est(N_user, H_real, H_imag, w_1, w_2, w_3, w_4, shots):
     result_sam = job_sam.result()
     counts_sam = result_sam[0].data.c.get_counts()
         
-    simp_counts_01 = marginal_counts(counts_sam, indices=[3])
-    simp_counts_02 = marginal_counts(counts_sam, indices=[2])
-    simp_counts_03 = marginal_counts(counts_sam, indices=[1])
-    simp_counts_04 = marginal_counts(counts_sam, indices=[0])
+    simp_counts_01 = marginal_counts(counts_sam, indices=[0])
+    simp_counts_02 = marginal_counts(counts_sam, indices=[1])
+    simp_counts_03 = marginal_counts(counts_sam, indices=[2])
+    simp_counts_04 = marginal_counts(counts_sam, indices=[3])
         # counts_sam = result_sam[0].data.c.get_counts()
         
     out1 = ave_meas(simp_counts_01)
@@ -362,9 +362,11 @@ def loss(N_user, N_ant, H_real, H_imag, w_1, w_2, w_3, w_4):
     sigma_n = 1;
     v1 = np.array([np.exp(1j*out1), np.exp(1j*out3)])       #precoding s.t opt out 2 antenna for user 1
     v2 = np.array([np.exp(1j*out2), np.exp(1j*out4)])       #precoding s.t opt out 2 antenna for user 1
-        
-    SNR_1 = ptx*np.abs(H[0,:]@v1)**2/sigma_n
-    SNR_2 = ptx*np.abs(H[1,:]@v2)**2/sigma_n
+    
+    V1_norm = v1/abs(v1)
+    V2_norm = v2/abs(v2)    
+    SNR_1 = ptx*np.abs(H[0,:]@V1_norm)**2/sigma_n
+    SNR_2 = ptx*np.abs(H[1,:]@V2_norm)**2/sigma_n
     R_k1 = np.log2(1+SNR_1)
     R_k2 = np.log2(1+SNR_2)
         # print(R_k1)
@@ -408,9 +410,9 @@ def gradient(N_user, N_ant, H_real, H_imag, w_1, w_2, w_3, w_4, w_index):
     grad_1, loss_min, loss_plus = gradient(N_user, Nt, H_real, H_imag, w_1, w_2, w_3, w_4, 1)
 # %%
 from matplotlib.pylab import plt
-N_eps = 1000
+N_eps = 10
 
-N_data = 400
+N_data = 100
 learn_step = 0.1
 
 w_1 = np.pi
@@ -450,6 +452,7 @@ for i_eps in range(N_eps):
             grad, loss_min, loss_plus = gradient(N_user, Nt, H_sample_real[i_data], H_sample_imag[i_data], w[0], w[1], w[2], w[3], i_weight)
             
             learn_step = learn_step_init / np.sqrt(i_eps+1)
+            # learn_step = 0.5 * learn_step_init * (1+np.cos((np.pi*(i_eps+1))/N_eps))
             
             w[i_weight] = w[i_weight] - ((learn_step)*grad)
             
@@ -460,6 +463,13 @@ for i_eps in range(N_eps):
         
     loss_mean_array.append(np.mean(loss_array))
     
+    print("i_episode =",i_eps)
+    print('optimized weight : ', np.array([w])) 
+    print('gradient: ', grad)
+    
+
+print('Result - weight cloud : ', np.array([w]))  
+
 
 plt.plot(loss_mean_array, label='QNN Loss, $N_{data}=50$')
 plt.grid(True)

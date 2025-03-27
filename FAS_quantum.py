@@ -152,10 +152,10 @@ def Q_sampler_est(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots):
     c = ClassicalRegister(H_real.size, 'c')
     qc1= QuantumCircuit(q,c)
         
-    for k in range(H_real.size):
-        qc1.h(q[k])
+    # for k in range(H_real.size):
+    #     qc1.h(q[k])
             
-    qc1.barrier()
+    # qc1.barrier()
         
     for k in range(H_real.size):
         qc1.ry(H_real[k], q[k])
@@ -165,11 +165,11 @@ def Q_sampler_est(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots):
         
     qc1.barrier()
     
-    qc1.cx(q[0], q[1])
-    qc1.cx(q[1], q[2])
-    qc1.cx(q[2], q[3])
-    qc1.cx(q[3], q[4])
-    qc1.cx(q[5], q[0])
+    qc1.cz(q[0], q[1])
+    qc1.cz(q[1], q[2])
+    qc1.cz(q[2], q[3])
+    qc1.cz(q[3], q[4])
+    qc1.cz(q[4], q[5])
     # for k in range(H_real.size-2):    
     #     qc1.cx(q[k], q[k+1])
 
@@ -257,40 +257,6 @@ ptx = 5
 
 # los = loss(h_ch, H_real_pick, H_imag_pick, w_1, w_2, w_3, w_4, shots=1024)
 # %%
-# def loss(h_ch, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6):
-    
-#     qc1, counts_sam,out, out1, out2, out3, out4, out5, out6 = Q_sampler_est(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots=1024)
-#     ptx = 1
-#     sigma_n = 1
-    
-#     Q = np.array([out1, out2, out3, out4, out5, out6])
-    
-#     indices = np.argpartition(Q, -3)[-3:]  # Indeks from max 3
-#     indices = np.sort(indices)  # Urutkan indeks agar tetap dalam urutan asli A
-
-#     # Ambil nilai berdasarkan indeks yang sudah diurutkan
-#     P = Q[indices]
-
-#     # print(P)
-    
-#     V = np.array([np.exp(1j*(np.sum(P)))])
-    
-#     h_max = h_ch[indices]
-#     #h_recon = np.zeros_like(h_ch)
-#     #[indices] = h_max
-    
-#     cap = ptx*np.abs(h_max * V)**2/sigma_n
-#     rate= np.log2(1+cap)
-#     sum_rate = np.sum(rate)
-#     #cap_P2 = np.log2(1+(ptx*np.abs(ch_gen[1,:]@V)**2/sigma_n))
-#     # print(cap_P2)
-#     # print(cap_P1+cap_P2)
-    
-#     loss = -(sum_rate)
-#     return loss
-
-# los = loss(h_ch, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6)
-# %%
 def loss(h_ch, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6):
     
     qc1, counts_sam,out, out1, out2, out3, out4, out5, out6 = Q_sampler_est(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots=1024)
@@ -298,17 +264,24 @@ def loss(h_ch, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6):
     sigma_n = 1
     
     Q = np.array([out1, out2, out3, out4, out5, out6])
-
-    V = np.array([np.exp(1j*(np.sum(Q)))])
     
+    indices = np.argpartition(Q, -3)[-3:]  # Indeks from max 3
+    indices = np.sort(indices)  # Urutkan indeks agar tetap dalam urutan asli A
+
+    # Ambil nilai berdasarkan indeks yang sudah diurutkan
+    P = Q[indices]
+
+    # print(P)
+    
+    V = np.array([np.exp(1j*(np.sum(P)))])
+    V_norm = V/abs(V)
+    
+    h_max = h_ch[indices]
     #h_recon = np.zeros_like(h_ch)
     #[indices] = h_max
     
-    snr = ptx*np.abs(h_ch * V)**2/sigma_n
-    # snr_max = np.sort(snr, axis=0)[-3:] #select 3 ports
-    snr_max = np.max(snr)   # only one port
-    
-    rate= np.log2(1+snr_max)
+    cap = ptx*np.abs(h_max * V_norm)**2/sigma_n
+    rate= np.log2(1+cap)
     sum_rate = np.sum(rate)
     #cap_P2 = np.log2(1+(ptx*np.abs(ch_gen[1,:]@V)**2/sigma_n))
     # print(cap_P2)
@@ -318,6 +291,34 @@ def loss(h_ch, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6):
     return loss
 
 los = loss(h_ch, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6)
+# %%
+# def loss(h_ch, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6):
+    
+#     qc1, counts_sam,out, out1, out2, out3, out4, out5, out6 = Q_sampler_est(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots=1024)
+#     ptx = 1
+#     sigma_n = 1
+    
+#     Q = np.array([out1, out2, out3, out4, out5, out6])
+
+#     V = np.array([np.exp(1j*(np.sum(Q)))])
+#     V_norm = V/abs(V)
+#     #h_recon = np.zeros_like(h_ch)
+#     #[indices] = h_max
+    
+#     snr = ptx*np.abs(h_ch * V_norm)**2/sigma_n
+#     snr_max = np.sort(snr, axis=0)[-3:] #select 3 ports
+#     # snr_max = np.max(snr)   # only one port
+    
+#     rate= np.log2(1+snr_max)
+#     sum_rate = np.sum(rate)
+#     #cap_P2 = np.log2(1+(ptx*np.abs(ch_gen[1,:]@V)**2/sigma_n))
+#     # print(cap_P2)
+#     # print(cap_P1+cap_P2)
+    
+#     loss = -(sum_rate)
+#     return loss
+
+# los = loss(h_ch, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6)
 
 # %%
 
@@ -383,9 +384,9 @@ h_ch, H_sample_real, H_sample_imag = ch_simp(N_port, N_sample, WL)
 
 WL = 0.5
 N_port = 6
-N_eps = 10
-N_data = 30 
-learn_step = 0.2
+N_eps = 50
+N_data = 300
+learn_step = 0.1
 w_1 = np.pi
 w_2 = np.pi
 w_3 = np.pi
@@ -410,8 +411,8 @@ for i_eps in range(N_eps):
             
             grad, loss_min, loss_plus = gradient(h_ch[:,i_data], H_sample_real[:,i_data], H_sample_imag[:,i_data], w[0], w[1], w[2], w[3], w[4], w[5], i_weight)
             
-            #learn_step = learn_step_init / np.sqrt(i_eps+1)
-            learn_step = 0.5 * learn_step_init * (1+np.cos((np.pi*(i_eps+1))/N_eps))
+            learn_step = learn_step_init / np.sqrt(i_eps+1)
+            # learn_step = 0.5 * learn_step_init * (1+np.cos((np.pi*(i_eps+1))/N_eps))
             
             w[i_weight] = w[i_weight] - ((learn_step)*grad)
             # w = np.array(w[i_weight])
