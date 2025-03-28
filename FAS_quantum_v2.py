@@ -50,10 +50,12 @@ L_r = 2; # Number of receive paths
 # %% generate channel
 
 def channel_gen(k_nd_BS, d_BS, k_rmd_U, d_U):
-    scatters_coordinate_t = np.array([[1, 1.2], [1, -1.2]]); # scatters coordinate form the origin O_t (x, y)
+    angle1 = 80
+    angle2 =180-angle1
+    scatters_coordinate_t = np.array([[1.7, 1.5], [0.3,-1.2]]); # scatters coordinate form the origin O_t (x, y)
     l_t = np.sqrt(scatters_coordinate_t[:, 0]**2 + scatters_coordinate_t[:,1]**2 \
                   - (2 * scatters_coordinate_t[:,0] * scatters_coordinate_t[:,1] \
-                     * np.cos(90*np.pi/180))); # distance from scatter to the origin O_t
+                     * np.cos(angle1*np.pi/180))); # distance from scatter to the origin O_t
     theta_t = np.arccos(scatters_coordinate_t[:, 0] / l_t) # elevation from origin to scatters (elevation transmit path)
 
     k_n = k_nd_BS / d_BS;
@@ -66,10 +68,10 @@ def channel_gen(k_nd_BS, d_BS, k_rmd_U, d_U):
     a = np.exp(1j*(2*np.pi/Lambda)*rho_t[:,0]) # transmit field response vector
     A = np.exp(1j*(2*np.pi/Lambda)*rho_t)   # The field response vectors of all the N transmit antennas
 
-    scatters_coordinate_r = np.array([[-1, 1.2], [-1, -1.2]]); # scatters coordinate form the origin O_r (x, y)
+    scatters_coordinate_r = np.array([[-0.3, 1.5], [-1.7, -1.2]]); # scatters coordinate form the origin O_r (x, y)
     l_r = np.sqrt(scatters_coordinate_r[:, 0]**2 + scatters_coordinate_r[:,1]**2 \
                   - (2 * scatters_coordinate_r[:,0] * scatters_coordinate_r[:,1] \
-                     * np.cos(90*np.pi/180)))
+                     * np.cos(angle2*np.pi/180)))
     theta_r = np.arccos(scatters_coordinate_r[:, 0] / l_r) # elevation from origin to scatters (elevation receiver path)
 
     k_rm = k_rmd_U / d_U;
@@ -127,7 +129,6 @@ def Q_sampler_est(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots):
 
     qc1.barrier()
         
-
     qc1.ry(w_1, q[0])
     qc1.ry(w_2, q[1])
     qc1.ry(w_3, q[2])
@@ -184,92 +185,78 @@ qc1.draw()
 
 # %% loss function
 
-def loss(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots):
-    qc1, counts_sam,out, out1, out2, out3, out4, out5, out6 = Q_sampler_est(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots)
-    ptx = 5
-    sigma_n = 1
-    
-    v1 = np.exp(1j*(out1+out2))
-    v2 = np.exp(1j*(out3+out4))
-    v3 = np.exp(1j*(out5+out6))
-    
-    Q = np.array([v1,v2,v3])
-    V_max = Q[np.argmax(np.abs(Q))]  #looking for biggest magnitude of complex number
-
-    snr = ptx*np.abs(ch_gen * V_max)**2/sigma_n
-
-    print(cap_P1)
-    # print(cap_P2)
-    # print(cap_P1+cap_P2)
-    return loss
-
-los = loss(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6,  shots=1024)
-# %%
-# def loss(h_ch, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6):
-    
+# def loss(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6):
 #     qc1, counts_sam,out, out1, out2, out3, out4, out5, out6 = Q_sampler_est(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots=1024)
-#     ptx = 1
+#     ptx = 5
 #     sigma_n = 1
     
-#     Q = np.array([out1, out2, out3, out4, out5, out6])
+#     v1 = np.exp(1j*(out1+out2))     # 1st port
+#     v2 = np.exp(1j*(out3+out4))     # 2nd port
+#     v3 = np.exp(1j*(out5+out6))     # 3rd port
     
-#     indices = np.argpartition(Q, -3)[-3:]  # Indeks from max 3
-#     indices = np.sort(indices)  # Urutkan indeks agar tetap dalam urutan asli A
-
-#     # Ambil nilai berdasarkan indeks yang sudah diurutkan
-#     P = Q[indices]
-
-#     # print(P)
+#     Q = np.array([v1,v2,v3])
+#     V_max = Q[np.argmax(np.abs(Q))]  #looking for biggest magnitude of complex number
+#     V_norm = V_max/abs(V_max)
     
-#     V = np.array([np.exp(1j*(np.sum(P)))])
-    
-#     h_max = h_ch[indices]
-#     #h_recon = np.zeros_like(h_ch)
-#     #[indices] = h_max
-    
-#     cap = ptx*np.abs(h_max * V)**2/sigma_n
-#     rate= np.log2(1+cap)
-#     sum_rate = np.sum(rate)
-#     #cap_P2 = np.log2(1+(ptx*np.abs(ch_gen[1,:]@V)**2/sigma_n))
+#     max_index = np.argmax(np.abs(Q))
+#     snr = ptx*np.abs(ch_gen[max_index] * V_norm)**2/sigma_n
+#     rate_BS1 = np.log2(1+snr[0])
+#     rate_BS2 = np.log2(1+snr[1])
+#     sum_rate = rate_BS1+rate_BS2
 #     # print(cap_P2)
 #     # print(cap_P1+cap_P2)
-    
 #     loss = -(sum_rate)
 #     return loss
 
-# los = loss(h_ch, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6)
+# los = loss(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6)
+
 # %%
-def loss(h_ch, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6):
+# ww = np.random.randn(3, 2) + 1j * np.random.randn(3, 2)
+num_ports=3
+H = ch_gen
+ptx = 5
+sigma_n = 1
+    
+def loss(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6):
     
     qc1, counts_sam,out, out1, out2, out3, out4, out5, out6 = Q_sampler_est(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots=1024)
-    ptx = 1
-    sigma_n = 1
     
-    Q = np.array([out1, out2, out3, out4, out5, out6])
+    v1 = np.exp(1j*(out1+out3+out5))     # 1st port
+    v2 = np.exp(1j*(out2+out4+out6))     # 2nd port
+    V1 = v1/abs(v1)
+    V2 = v2/abs(v2)
+    Q = np.array([V1,V2])
+    
+    def compute_sinr(H, Q, sigma_n):
+        signal = np.abs(H.conj().T * Q)**2  # Sinyal ke port p
+        interference = np.sum(np.abs(H * Q)**2) - signal  # Interferensi dari port lain
+        sinr = signal / (interference + sigma_n)  # Hitung SINR port p
+        return sinr
 
-    V = np.array([np.exp(1j*(np.sum(Q)))])
+    sinr = compute_sinr(H, Q, sigma_n)
+
+    def compute_sum_rate(sinr, selected_port):
+        return np.log2(1 + sinr[selected_port])
     
-    #h_recon = np.zeros_like(h_ch)
-    #[indices] = h_max
+
+    Q = np.array([v1,v2,v3])
+    V_max = Q[np.argmax(np.abs(Q))]  #looking for biggest magnitude of complex number
+    V_norm = V_max/abs(V_max)
     
-    snr = ptx*np.abs(h_ch * V)**2/sigma_n
-    # snr_max = np.sort(snr, axis=0)[-3:] #select 3 ports
-    snr_max = np.max(snr)   # only one port
-    
-    rate= np.log2(1+snr_max)
-    sum_rate = np.sum(rate)
-    #cap_P2 = np.log2(1+(ptx*np.abs(ch_gen[1,:]@V)**2/sigma_n))
+    max_index = np.argmax(np.abs(Q))
+    snr = ptx*np.abs(ch_gen[max_index] * V_norm)**2/sigma_n
+    rate_BS1 = np.log2(1+snr[0])
+    rate_BS2 = np.log2(1+snr[1])
+    sum_rate = rate_BS1+rate_BS2
     # print(cap_P2)
     # print(cap_P1+cap_P2)
-    
     loss = -(sum_rate)
     return loss
 
-los = loss(h_ch, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6)
-
+los = loss(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6)
 # %%
 
-def gradient(h_ch, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, w_index):
+def gradient(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, w_index):
         
     shift = np.pi/2
         
@@ -277,12 +264,12 @@ def gradient(h_ch, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, w_index):
         
     w_min = w
     w_plus = w
-        
+    
     w_min[w_index] = w_min[w_index] - shift
-    loss_min = loss(h_ch, H_real, H_imag, w_min[0], w_min[1], w_min[2], w_min[3], w_min[4], w_min[5])
+    loss_min = loss(N_BS, ch_gen, H_real, H_imag, w_min[0], w_min[1], w_min[2], w_min[3], w_min[4], w_min[5])
         
     w_plus[w_index] = w_plus[w_index] + shift
-    loss_plus = loss(h_ch, H_real, H_imag, w_plus[0], w_plus[1], w_plus[2], w_plus[3], w_plus[4], w_plus[5])
+    loss_plus = loss(N_BS, ch_gen, H_real, H_imag, w_plus[0], w_plus[1], w_plus[2], w_plus[3], w_plus[4], w_plus[5])
         
     grad = (1/2*np.sin(shift)) * (loss_min-loss_plus)
         
@@ -295,62 +282,23 @@ w_4 = np.pi
 w_5 = np.pi
 w_6 = np.pi
 
-grad_1, loss_min, loss_plus = gradient(h_ch, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, 1)
-
-# %% generate simplified channel function
-#
-N_port = 6
-N_sample = 3
-WL = 0.1
-
-def ch_simp(N_port, N_sample, WL):
-    # H_sample_real = []
-    # H_sample_imag = []
-   
-    for i_sample in range(N_sample):
-        x = np.sqrt(1/2)*np.random.randn(N_port,N_sample)
-        y = np.sqrt(1/2)*np.random.randn(N_port,N_sample)
-        h_ch = np.zeros((N_port,N_sample), dtype=complex)
-        mu = np.zeros(N_port)
-        h_ch[0,:] = x[0,:] + 1j*y[0,:]     #reference port
-        mu[0] = 1                       #reference port (mu is spatial correlation between port using bessel func)
-        for i_port in range(1,N_port):
-            mu[i_port] = jv(0, 2*np.pi * (abs((i_port+1)-1)/(N_port-1)) * WL)
-            h_ch[i_port,:] = (np.sqrt(1-mu[i_port]**2) * x[i_port,:] + mu[i_port] * x[0,:] + 
-                            1j*(np.sqrt(1-mu[i_port]**2) * y[i_port,:] + mu[i_port] * y[0,:]))          
-        
-        #inputs = np.round(h_ch[:,i_sample], 5)
-        H_real = np.round(np.real(h_ch),5)
-        H_imag = np.round(np.imag(h_ch),5)
-
-    return h_ch, H_real, H_imag
-
-h_ch, H_sample_real, H_sample_imag = ch_simp(N_port, N_sample, WL)    
+grad_1, loss_min, loss_plus = gradient(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, 1)  
 
 # %%
 
-N_data = 2
-H_sample_real = []
-H_sample_imag = []
 
-for i_channel in range(N_data):
-    ch_gen = channel_gen(k_nd_BS, d_BS, k_rmd_U, d_U)
-
-    inputs_og = np.reshape(ch_gen,(-1,1))
-    inputs = np.round(inputs_og, 5)
-    H_real = np.real(inputs).flatten()
-    H_imag = np.imag(inputs).flatten()    
-
-    H_sample_real.append(H_real)
-    H_sample_imag.append(H_imag)
+    
+    # ch_gen = channel_gen(k_nd_BS, d_BS, k_rmd_U, d_U)
+    # h_ch = np.reshape(ch_gen,(-1,1))
+    # H_real = np.round(np.real(h_ch),5).flatten()
+    # H_imag = np.round(np.imag(h_ch),5).flatten()
 
 # %%
 
 WL = 0.5
-N_port = 6
-N_eps = 10
-N_data = 30 
-learn_step = 0.2
+N_eps = 20
+N_data = 50
+learn_step = 0.1
 w_1 = np.pi
 w_2 = np.pi
 w_3 = np.pi
@@ -362,7 +310,22 @@ w = np.array([w_1, w_2, w_3, w_4, w_5, w_6])
 
 learn_step_init = learn_step
 
-h_ch, H_sample_real, H_sample_imag = ch_simp(N_port, N_data, WL) 
+#Generate dataset channel
+H_sample_real = []
+H_sample_imag = []
+h_ch = []
+
+for i_channel in range(N_data):
+    ch_gen = channel_gen(k_nd_BS, d_BS, k_rmd_U, d_U)
+
+    inputs_og = np.reshape(ch_gen,(-1,1))
+    inputs = np.round(inputs_og, 5)
+    H_real = np.real(inputs).flatten()
+    H_imag = np.imag(inputs).flatten()    
+    
+    h_ch.append(ch_gen)
+    H_sample_real.append(H_real)
+    H_sample_imag.append(H_imag)
 
 loss_mean_array =[]
 loss_min_array = []
@@ -373,15 +336,15 @@ for i_eps in range(N_eps):
         
         for i_weight in range(len(w)):
             
-            grad, loss_min, loss_plus = gradient(h_ch[:,i_data], H_sample_real[:,i_data], H_sample_imag[:,i_data], w[0], w[1], w[2], w[3], w[4], w[5], i_weight)
+            grad, loss_min, loss_plus = gradient(N_BS, h_ch[i_data], H_sample_real[i_data], H_sample_imag[i_data], w[0], w[1], w[2], w[3], w[4], w[5], i_weight)
             
-            #learn_step = learn_step_init / np.sqrt(i_eps+1)
-            learn_step = 0.5 * learn_step_init * (1+np.cos((np.pi*(i_eps+1))/N_eps))
+            learn_step = learn_step_init / np.sqrt(i_eps+1)
+            # learn_step = 0.5 * learn_step_init * (1+np.cos((np.pi*(i_eps+1))/N_eps))
             
             w[i_weight] = w[i_weight] - ((learn_step)*grad)
             # w = np.array(w[i_weight])
         
-        loss_cal = loss(h_ch[:,i_data], H_sample_real[:,i_data], H_sample_imag[:,i_data], w[0], w[1], w[2], w[3], w[4], w[5])
+        loss_cal = loss(N_BS, h_ch[i_data], H_sample_real[i_data], H_sample_imag[i_data], w[0], w[1], w[2], w[3], w[4], w[5])
         
         loss_array.append(loss_cal)
     
@@ -395,7 +358,7 @@ for i_eps in range(N_eps):
     print('gradient: ', grad)
     
 
-print('Result - weight cloud : ', np.array([w]))  
+print('Result - weight final: ', np.array([w]))  
 
     
 # plt.plot(loss_mean_array, label='QNN Loss, $N_{data}=50$')
