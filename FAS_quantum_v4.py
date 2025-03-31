@@ -1,13 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Mar 25 18:25:56 2025
-
-@author: orecy
-"""
-
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Mar 18 19:40:33 2025
+Created on Mon Mar 31 19:04:15 2025
 
 @author: orecy
 """
@@ -121,9 +114,10 @@ def ch_simp(N_port, N_BS, WL):
 
 ch_gen, H_real, H_imag = ch_simp(N_port, N_BS, WL)
 h_ch = np.reshape(ch_gen,(-1,1))
-H_real = np.round(np.real(h_ch),5).flatten()
-H_imag = np.round(np.imag(h_ch),5).flatten()
-        
+H_real = H_real.flatten()
+H_imag = H_imag.flatten()
+
+
 # %%
 w_1 = 0
 w_2 = 0
@@ -136,37 +130,30 @@ def ave_meas(count):
      total = count.get('0', 0) + count.get('1', 0)
      return count.get('1', 0) / total if total > 0 else 0
 
-def Q_sampler_est(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots):
+def Q_sampler_est(ch_gen, H_real, H_imag, w_1, w_2, w_3, shots):
         
-    q = QuantumRegister(H_real.size, 'q')
-    c = ClassicalRegister(H_real.size, 'c')
+    q = QuantumRegister(ch_gen.shape[0], 'q')
+    c = ClassicalRegister(ch_gen.shape[0], 'c')
     qc1= QuantumCircuit(q,c)
         
-    qc1.barrier()    
+    qc1.barrier()
+    
+    for j in range(ch_gen.shape[0]):
+        for k in range(ch_gen.shape[1]):
+            qc1.ry(LA.norm(ch_gen[j,k]), q[j])
         
-    for k in range(H_real.size):
-        qc1.ry(H_real[k], q[k])
-            
-    for i in range(H_real.size):
-        qc1.rz(H_imag[i], q[i])
-        
+
     qc1.barrier()
     
     qc1.cx(q[0], q[1])
     qc1.cx(q[1], q[2])
-    qc1.cx(q[2], q[3])
-    qc1.cx(q[3], q[4])
-    qc1.cx(q[4], q[5])
-    qc1.cx(q[5], q[0])
+    qc1.cx(q[2], q[0])
 
     qc1.barrier()
         
     qc1.ry(w_1, q[0])
     qc1.ry(w_2, q[1])
     qc1.ry(w_3, q[2])
-    qc1.ry(w_4, q[3])
-    qc1.ry(w_5, q[4])
-    qc1.ry(w_6, q[5])
     
     qc1.barrier()
     
@@ -182,9 +169,7 @@ def Q_sampler_est(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots):
     qc1.measure(q[0], c[0]) 
     qc1.measure(q[1], c[1]) 
     qc1.measure(q[2], c[2]) 
-    qc1.measure(q[3], c[3])
-    qc1.measure(q[4], c[4]) 
-    qc1.measure(q[5], c[5])     
+   
         
     sampler = StatevectorSampler()
         
@@ -195,31 +180,24 @@ def Q_sampler_est(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots):
     simp_counts_01 = marginal_counts(counts_sam, indices=[0])
     simp_counts_02 = marginal_counts(counts_sam, indices=[1])
     simp_counts_03 = marginal_counts(counts_sam, indices=[2])
-    simp_counts_04 = marginal_counts(counts_sam, indices=[3])
-    simp_counts_05 = marginal_counts(counts_sam, indices=[4])
-    simp_counts_06 = marginal_counts(counts_sam, indices=[5])
+
         # counts_sam = result_sam[0].data.c.get_counts()
         
     out1 = ave_meas(simp_counts_01)
     out2 = ave_meas(simp_counts_02)
     out3 = ave_meas(simp_counts_03)
-    out4 = ave_meas(simp_counts_04)
-    out5 = ave_meas(simp_counts_05)
-    out6 = ave_meas(simp_counts_06)
-        
-    out = [out1, out2, out3, out4, out5, out6]
 
-    return qc1, counts_sam, out, out1, out2, out3, out4, out5, out6
+        
+    out = [out1, out2, out3]
+
+    return qc1, counts_sam, out, out1, out2, out3
 
 #H_real = H_sample_real[0]
 #H_imag = H_sample_imag[0]
-qc1, counts_sam,out, out1, out2, out3, out4, out5, out6 = Q_sampler_est(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots=1024)
+qc1, counts_sam,out, out1, out2, out3 = Q_sampler_est(ch_gen, H_real, H_imag, w_1, w_2, w_3, shots=1024)
 print("measurement_average_01 =",out[0])
 print("measurement_average_02 =",out[1])
 print("measurement_average_03 =",out[2])
-print("measurement_average_04 =",out[3])
-print("measurement_average_05 =",out[4])
-print("measurement_average_06 =",out[5])
 
 # %% loss function
 
@@ -255,53 +233,56 @@ H = ch_gen
 ptx = 5
 sigma_n = 1
     
-def loss(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6):
+def loss(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3):
     
-    qc1, counts_sam,out, out1, out2, out3, out4, out5, out6 = Q_sampler_est(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots=1024)
+    qc1, counts_sam,out, out1, out2, out3 = Q_sampler_est(ch_gen, H_real, H_imag, w_1, w_2, w_3, shots=1024)
     
-    v1 = np.exp(1j*(2*np.pi/Lambda)*(out1+out3+out5))     # 1st BS
-    v2 = np.exp(1j*(2*np.pi/Lambda)*(out2+out4+out6))     # 2nd BS
+    v1 = np.exp(1j*(2*np.pi/Lambda)*(out1))     # 1st port
+    v2 = np.exp(1j*(2*np.pi/Lambda)*(out2))     # 2nd port
+    v3 = np.exp(1j*(2*np.pi/Lambda)*(out3))     # 3rd port
     V1 = v1/abs(v1)
     V2 = v2/abs(v2)
-    Q = np.array([V1,V2])
+    V3 = v3/abs(v3)
+    Q = np.array([V1,V2,V3])
     
     def compute_sinr(H, Q, num_ports, sigma_n):
-        sinr = np.zeros(num_ports)
+        sinr_port = np.zeros(num_ports)
         for k in range(num_ports):
-            signal = np.abs(H[k,:].conj().T @ Q)**2  # Sinyal ke port p
-            interference = np.sum([np.abs(H[j, :].conj().T @ Q)**2 for j in range(num_ports) if j != k
+            signal = np.abs(H[k,:].conj().T * Q[k])**2  # Sinyal ke port p
+            interference = np.sum([np.abs(H[j, :].conj().T * Q[j])**2 for j in range(num_ports) if j != k
                                    ])
             # interference = np.sum(np.abs(H @ Q)**2) - signal  # Interferensi dari port lain
-            sinr[k] = signal / (interference + sigma_n)  # Hitung SINR port p
-        
-        best_port = np.argmax(sinr)
-        return sinr, best_port
+            sinr = signal / (interference + sigma_n)  # Hitung SINR port p
+            sinr_port[k] = np.sum(sinr)
+            
+        best_port = np.argmax(sinr_port)
+        return sinr_port, best_port
 
     sinr, best_port = compute_sinr(H, Q, num_ports, sigma_n)
     # print(sinr)
     
-    sum_rate = np.log2(1 + sinr[best_port])
+    sum_rate = (np.log2(1 + sinr[best_port])) 
 
     loss = -(sum_rate)
     return loss
 
-los = loss(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6)
+los = loss(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3)
 # %%
 
-def gradient(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, w_index):
+def gradient(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_index):
         
     shift = np.pi/2
         
-    w = np.array([w_1, w_2, w_3, w_4, w_5, w_6])
+    w = np.array([w_1, w_2, w_3])
         
     w_min = w
     w_plus = w
     
     w_min[w_index] = w_min[w_index] - shift
-    loss_min = loss(N_BS, ch_gen, H_real, H_imag, w_min[0], w_min[1], w_min[2], w_min[3], w_min[4], w_min[5])
+    loss_min = loss(N_BS, ch_gen, H_real, H_imag, w_min[0], w_min[1], w_min[2])
         
     w_plus[w_index] = w_plus[w_index] + shift
-    loss_plus = loss(N_BS, ch_gen, H_real, H_imag, w_plus[0], w_plus[1], w_plus[2], w_plus[3], w_plus[4], w_plus[5])
+    loss_plus = loss(N_BS, ch_gen, H_real, H_imag, w_plus[0], w_plus[1], w_plus[2])
         
     grad = (1/2*np.sin(shift)) * (loss_min-loss_plus)
         
@@ -310,26 +291,20 @@ def gradient(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, w_index
 w_1 = np.pi
 w_2 = np.pi
 w_3 = np.pi
-w_4 = np.pi
-w_5 = np.pi
-w_6 = np.pi
 
-grad_1, loss_min, loss_plus = gradient(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, 1)  
+grad_1, loss_min, loss_plus = gradient(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, 1)  
 
 # %%
 
 WL = 0.5
-N_eps = 20
+N_eps = 10
 N_data = 100
-learn_step = 0.1
+learn_step = 1e-4
 w_1 = np.pi
 w_2 = np.pi
 w_3 = np.pi
-w_4 = np.pi
-w_5 = np.pi
-w_6 = np.pi
 
-w = np.array([w_1, w_2, w_3, w_4, w_5, w_6])
+w = np.array([w_1, w_2, w_3])
 
 learn_step_init = learn_step
 
@@ -361,7 +336,7 @@ for i_eps in range(N_eps):
         
         for i_weight in range(len(w)):
             
-            grad, loss_min, loss_plus = gradient(N_BS, h_ch[i_data], H_sample_real[i_data], H_sample_imag[i_data], w[0], w[1], w[2], w[3], w[4], w[5], i_weight)
+            grad, loss_min, loss_plus = gradient(N_BS, h_ch[i_data], H_sample_real[i_data], H_sample_imag[i_data], w[0], w[1], w[2], i_weight)
             
             learn_step = learn_step_init / np.sqrt(i_eps+1)
             # learn_step = 0.5 * learn_step_init * (1+np.cos((np.pi*(i_eps+1))/N_eps))
@@ -369,7 +344,7 @@ for i_eps in range(N_eps):
             w[i_weight] = w[i_weight] - ((learn_step)*grad)
             # w = np.array(w[i_weight])
         
-        loss_cal = loss(N_BS, h_ch[i_data], H_sample_real[i_data], H_sample_imag[i_data], w[0], w[1], w[2], w[3], w[4], w[5])
+        loss_cal = loss(N_BS, h_ch[i_data], H_sample_real[i_data], H_sample_imag[i_data], w[0], w[1], w[2])
         
         loss_array.append(loss_cal)
     

@@ -1,13 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Mar 25 18:25:56 2025
-
-@author: orecy
-"""
-
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Mar 18 19:40:33 2025
+Created on Mon Mar 31 15:56:35 2025
 
 @author: orecy
 """
@@ -27,7 +20,7 @@ import numpy as np
 from math import pi
 import scipy
 from scipy.special import jv
-from numpy import linalg as LA
+
 # %% initialization
 
 c = 3e8
@@ -49,54 +42,55 @@ L_r = 2; # Number of receive paths
 
 # %% generate channel
 
-# def channel_gen(k_nd_BS, d_BS, k_rmd_U, d_U):
-#     angle1 = 80
-#     angle2 = 80
-#     scatters_coordinate_t = np.array([[1.7, 1.5], [0.3,-1.2]]); # scatters coordinate form the origin O_t (x, y)
-#     l_t = np.sqrt(scatters_coordinate_t[:, 0]**2 + scatters_coordinate_t[:,1]**2 \
-#                   - (2 * scatters_coordinate_t[:,0] * scatters_coordinate_t[:,1] \
-#                      * np.cos(angle1*np.pi/180))); # distance from scatter to the origin O_t
-#     theta_t = np.arccos(scatters_coordinate_t[:, 0] / l_t) # elevation from origin to scatters (elevation transmit path)
+def channel_gen(k_nd_BS, d_BS, k_rmd_U, d_U):
+    angle1 = 90
+    angle2 =180-angle1
+    scatters_coordinate_t = np.array([[1.7, 1.1], [1,-1.2]]); # scatters coordinate form the origin O_t (x, y)
+    l_t = np.sqrt(scatters_coordinate_t[:, 0]**2 + scatters_coordinate_t[:,1]**2 \
+                  - (2 * scatters_coordinate_t[:,0] * scatters_coordinate_t[:,1] \
+                     * np.cos(angle1*np.pi/180))); # distance from scatter to the origin O_t
+    theta_t = np.arccos(scatters_coordinate_t[:, 0] / l_t) # elevation from origin to scatters (elevation transmit path)
 
-#     k_n = k_nd_BS / d_BS;
-#     rho_scatter1 = -k_nd_BS * np.sin(theta_t[0]) - ((k_n**2 * d_BS**2 * np.sin(theta_t[0])**2) / 2*l_t[0])
-#     rho_scatter2 = -k_nd_BS * np.sin(theta_t[1]) - ((k_n**2 * d_BS**2 * np.sin(theta_t[1])**2) / 2*l_t[1])
-#     rho_t = np.array([rho_scatter1, rho_scatter2])
+    k_n = k_nd_BS / d_BS;
+    rho_scatter1 = -k_nd_BS * np.sin(theta_t[0]) - ((k_n**2 * d_BS**2 * np.sin(theta_t[0])**2) / 2*l_t[0])
+    rho_scatter2 = -k_nd_BS * np.sin(theta_t[1]) - ((k_n**2 * d_BS**2 * np.sin(theta_t[1])**2) / 2*l_t[1])
+    rho_t = np.array([rho_scatter1, rho_scatter2])
 
 
-#     signal_phase_different_tx = (2*np.pi*rho_t/Lambda);
-#     a = np.exp(1j*(2*np.pi/Lambda)*rho_t[:,0]) # transmit field response vector
-#     A = np.exp(1j*(2*np.pi/Lambda)*rho_t)   # The field response vectors of all the N transmit antennas
+    signal_phase_different_tx = (2*np.pi*rho_t/Lambda);
+    a = np.exp(1j*(2*np.pi/Lambda)*rho_t[:,0]) # transmit field response vector
+    A = np.exp(1j*(2*np.pi/Lambda)*rho_t)   # The field response vectors of all the N transmit antennas
 
-#     scatters_coordinate_r = np.array([[-0.3, 1.5], [-1.7, -1.2]]); # scatters coordinate form the origin O_r (x, y)
-#     l_r = np.sqrt(scatters_coordinate_r[:, 0]**2 + scatters_coordinate_r[:,1]**2 \
-#                   - (2 * scatters_coordinate_r[:,0] * scatters_coordinate_r[:,1] \
-#                      * np.cos(angle2*np.pi/180)))
-#     theta_r = np.arccos(scatters_coordinate_r[:, 0] / l_r) # elevation from origin to scatters (elevation receiver path)
+    scatters_coordinate_r = np.array([[-0.3, 1.1], [-1, -1.2]]); # scatters coordinate form the origin O_r (x, y)
+    l_r = np.sqrt(scatters_coordinate_r[:, 0]**2 + scatters_coordinate_r[:,1]**2 \
+                  - (2 * scatters_coordinate_r[:,0] * scatters_coordinate_r[:,1] \
+                     * np.cos(angle2*np.pi/180)))
+    theta_r = np.arccos(scatters_coordinate_r[:, 0] / l_r) # elevation from origin to scatters (elevation receiver path)
 
-#     k_rm = k_rmd_U / d_U;
-#     rho_scatter1_r = -k_rmd_U * np.sin(theta_r[0]) - ((k_rm**2 * d_U**2 * np.sin(theta_r[0])**2) / 2*l_r[0])
-#     rho_scatter2_r = -k_rmd_U * np.sin(theta_r[1]) - ((k_rm**2 * d_U**2 * np.sin(theta_r[1])**2) / 2*l_r[1])
-#     rho_r = np.array([rho_scatter1_r, rho_scatter2_r]);
+    k_rm = k_rmd_U / d_U;
+    rho_scatter1_r = -k_rmd_U * np.sin(theta_r[0]) - ((k_rm**2 * d_U**2 * np.sin(theta_r[0])**2) / 2*l_r[0])
+    rho_scatter2_r = -k_rmd_U * np.sin(theta_r[1]) - ((k_rm**2 * d_U**2 * np.sin(theta_r[1])**2) / 2*l_r[1])
+    rho_r = np.array([rho_scatter1_r, rho_scatter2_r]);
 
-#     b = np.exp(1j*(2*np.pi/Lambda)*rho_r[:,0]) # Receive field response vector
-#     B = np.exp(1j*(2*np.pi/Lambda)*rho_r)   # The field response vectors of all the m_o receive antennas
-#     B_Hermition = B.conj().T
+    b = np.exp(1j*(2*np.pi/Lambda)*rho_r[:,0]) # Receive field response vector
+    B = np.exp(1j*(2*np.pi/Lambda)*rho_r)   # The field response vectors of all the m_o receive antennas
+    B_Hermition = B.conj().T
 
-#     O = np.random.normal(loc=0, scale=1, size=(2, 2)) + 1j*np.random.normal(loc=0, scale=1, size=(2, 2)) # (i.i.d.) Gaussian random variable with zero mean and variance α2
-#     ch_gen = B_Hermition@O@A
+    O = np.random.normal(loc=0, scale=1, size=(2, 2)) + 1j*np.random.normal(loc=0, scale=1, size=(2, 2)) # (i.i.d.) Gaussian random variable with zero mean and variance α2
+    ch_gen = B_Hermition@O@A
     
-#     return ch_gen
+    return ch_gen
 
-# ch_gen = channel_gen(k_nd_BS, d_BS, k_rmd_U, d_U)
-# h_ch = np.reshape(ch_gen,(-1,1))
-# H_real = np.round(np.real(h_ch),5).flatten()
-# H_imag = np.round(np.imag(h_ch),5).flatten()
-
+ch_gen = channel_gen(k_nd_BS, d_BS, k_rmd_U, d_U)
+h_ch = np.reshape(ch_gen,(-1,1))
+H_real = np.round(np.real(h_ch),5).flatten()
+H_imag = np.round(np.imag(h_ch),5).flatten()
+  
 # %%
 N_port = 3
 N_BS = 2
-WL = 0.5
+WL = 0.1
+N_sample = 2
 
 def ch_simp(N_port, N_BS, WL):
     # H_sample_real = []
@@ -123,61 +117,42 @@ ch_gen, H_real, H_imag = ch_simp(N_port, N_BS, WL)
 h_ch = np.reshape(ch_gen,(-1,1))
 H_real = np.round(np.real(h_ch),5).flatten()
 H_imag = np.round(np.imag(h_ch),5).flatten()
-        
+    
 # %%
-w_1 = 0
-w_2 = 0
-w_3 = 0
-w_4 = 0
-w_5 = 0
-w_6 = 0
+
+w = np.random.randn(H_real.size * 3)
 
 def ave_meas(count):
      total = count.get('0', 0) + count.get('1', 0)
      return count.get('1', 0) / total if total > 0 else 0
 
-def Q_sampler_est(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots):
+def Q_sampler_est(H_real, H_imag, w, shots):
         
     q = QuantumRegister(H_real.size, 'q')
     c = ClassicalRegister(H_real.size, 'c')
     qc1= QuantumCircuit(q,c)
         
-    qc1.barrier()    
-        
-    for k in range(H_real.size):
-        qc1.ry(H_real[k], q[k])
-            
     for i in range(H_real.size):
-        qc1.rz(H_imag[i], q[i])
+        qc1.ry(np.arctan(H_real[i]), i)
+        qc1.rz(np.arctan(H_imag[i]), i)
         
     qc1.barrier()
     
-    qc1.cx(q[0], q[1])
-    qc1.cx(q[1], q[2])
-    qc1.cx(q[2], q[3])
-    qc1.cx(q[3], q[4])
-    qc1.cx(q[4], q[5])
-    qc1.cx(q[5], q[0])
+    qc1.cz(q[0], q[1])
+    qc1.cz(q[1], q[2])
+    qc1.cz(q[2], q[3])
+    qc1.cz(q[3], q[4])
+    qc1.cz(q[4], q[5])
+    qc1.cz(q[5], q[0])
 
     qc1.barrier()
-        
-    qc1.ry(w_1, q[0])
-    qc1.ry(w_2, q[1])
-    qc1.ry(w_3, q[2])
-    qc1.ry(w_4, q[3])
-    qc1.ry(w_5, q[4])
-    qc1.ry(w_6, q[5])
+    
+    for i in range(H_real.size):
+        qc1.rx(w[i], i)
+        qc1.ry(w[i + H_real.size], i)
+        qc1.rz(w[i + 2*H_real.size], i)
     
     qc1.barrier()
-    
-    # qc1.cz(q[0], q[1])
-    # qc1.cz(q[1], q[2])
-    # qc1.cz(q[2], q[3])
-    # qc1.cz(q[3], q[4])
-    # qc1.cz(q[4], q[5])
-    # qc1.cz(q[5], q[0])
-    
-    # qc1.barrier()
         
     qc1.measure(q[0], c[0]) 
     qc1.measure(q[1], c[1]) 
@@ -213,40 +188,13 @@ def Q_sampler_est(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots):
 
 #H_real = H_sample_real[0]
 #H_imag = H_sample_imag[0]
-qc1, counts_sam,out, out1, out2, out3, out4, out5, out6 = Q_sampler_est(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots=1024)
+qc1, counts_sam,out, out1, out2, out3, out4, out5, out6 = Q_sampler_est(H_real, H_imag, w, shots=1024)
 print("measurement_average_01 =",out[0])
 print("measurement_average_02 =",out[1])
 print("measurement_average_03 =",out[2])
 print("measurement_average_04 =",out[3])
 print("measurement_average_05 =",out[4])
 print("measurement_average_06 =",out[5])
-
-# %% loss function
-
-# def loss(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6):
-#     qc1, counts_sam,out, out1, out2, out3, out4, out5, out6 = Q_sampler_est(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots=1024)
-#     ptx = 5
-#     sigma_n = 1
-    
-#     v1 = np.exp(1j*(out1+out2))     # 1st port
-#     v2 = np.exp(1j*(out3+out4))     # 2nd port
-#     v3 = np.exp(1j*(out5+out6))     # 3rd port
-    
-#     Q = np.array([v1,v2,v3])
-#     V_max = Q[np.argmax(np.abs(Q))]  #looking for biggest magnitude of complex number
-#     V_norm = V_max/abs(V_max)
-    
-#     max_index = np.argmax(np.abs(Q))
-#     snr = ptx*np.abs(ch_gen[max_index] * V_norm)**2/sigma_n
-#     rate_BS1 = np.log2(1+snr[0])
-#     rate_BS2 = np.log2(1+snr[1])
-#     sum_rate = rate_BS1+rate_BS2
-#     # print(cap_P2)
-#     # print(cap_P1+cap_P2)
-#     loss = -(sum_rate)
-#     return loss
-
-# los = loss(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6)
 
 # %%
 # ww = np.random.randn(3, 2) + 1j * np.random.randn(3, 2)
@@ -255,9 +203,9 @@ H = ch_gen
 ptx = 5
 sigma_n = 1
     
-def loss(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6):
+def loss(N_BS, ch_gen, H_real, H_imag, w):
     
-    qc1, counts_sam,out, out1, out2, out3, out4, out5, out6 = Q_sampler_est(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots=1024)
+    qc1, counts_sam,out, out1, out2, out3, out4, out5, out6 = Q_sampler_est(H_real, H_imag, w, shots=1024)
     
     v1 = np.exp(1j*(2*np.pi/Lambda)*(out1+out3+out5))     # 1st BS
     v2 = np.exp(1j*(2*np.pi/Lambda)*(out2+out4+out6))     # 2nd BS
@@ -285,51 +233,42 @@ def loss(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6):
     loss = -(sum_rate)
     return loss
 
-los = loss(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6)
+w = np.random.randn(H_real.size * 3)
+los = loss(N_BS, ch_gen, H_real, H_imag, w)
 # %%
 
-def gradient(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, w_index):
+def gradient(N_BS, ch_gen, H_real, H_imag, w, w_index):
         
     shift = np.pi/2
-        
-    w = np.array([w_1, w_2, w_3, w_4, w_5, w_6])
-        
+              
     w_min = w
     w_plus = w
     
+
     w_min[w_index] = w_min[w_index] - shift
-    loss_min = loss(N_BS, ch_gen, H_real, H_imag, w_min[0], w_min[1], w_min[2], w_min[3], w_min[4], w_min[5])
+    loss_min = loss(N_BS, ch_gen, H_real, H_imag, w_min)
         
     w_plus[w_index] = w_plus[w_index] + shift
-    loss_plus = loss(N_BS, ch_gen, H_real, H_imag, w_plus[0], w_plus[1], w_plus[2], w_plus[3], w_plus[4], w_plus[5])
+    loss_plus = loss(N_BS, ch_gen, H_real, H_imag, w)
         
     grad = (1/2*np.sin(shift)) * (loss_min-loss_plus)
         
     return grad, loss_min, loss_plus
 
-w_1 = np.pi
-w_2 = np.pi
-w_3 = np.pi
-w_4 = np.pi
-w_5 = np.pi
-w_6 = np.pi
+w = np.random.randn(H_real.size * 3)
 
-grad_1, loss_min, loss_plus = gradient(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, 1)  
+grad_1, loss_min, loss_plus = gradient(N_BS, ch_gen, H_real, H_imag, w, 1)  
 
+
+     
 # %%
 
 WL = 0.5
-N_eps = 20
-N_data = 100
+N_eps = 10
+N_data = 50
 learn_step = 0.1
-w_1 = np.pi
-w_2 = np.pi
-w_3 = np.pi
-w_4 = np.pi
-w_5 = np.pi
-w_6 = np.pi
 
-w = np.array([w_1, w_2, w_3, w_4, w_5, w_6])
+w = np.random.randn(H_real.size * 3)
 
 learn_step_init = learn_step
 
@@ -339,9 +278,7 @@ H_sample_imag = []
 h_ch = []
 
 for i_channel in range(N_data):
-    # ch_gen = channel_gen(k_nd_BS, d_BS, k_rmd_U, d_U)
     ch_gen, H_real, H_imag = ch_simp(N_port, N_BS, WL) 
-
 
     inputs_og = np.reshape(ch_gen,(-1,1))
     inputs = np.round(inputs_og, 5)
@@ -361,7 +298,7 @@ for i_eps in range(N_eps):
         
         for i_weight in range(len(w)):
             
-            grad, loss_min, loss_plus = gradient(N_BS, h_ch[i_data], H_sample_real[i_data], H_sample_imag[i_data], w[0], w[1], w[2], w[3], w[4], w[5], i_weight)
+            grad, loss_min, loss_plus = gradient(N_BS, h_ch[i_data], H_sample_real[i_data], H_sample_imag[i_data], w, i_weight)
             
             learn_step = learn_step_init / np.sqrt(i_eps+1)
             # learn_step = 0.5 * learn_step_init * (1+np.cos((np.pi*(i_eps+1))/N_eps))
@@ -369,7 +306,7 @@ for i_eps in range(N_eps):
             w[i_weight] = w[i_weight] - ((learn_step)*grad)
             # w = np.array(w[i_weight])
         
-        loss_cal = loss(N_BS, h_ch[i_data], H_sample_real[i_data], H_sample_imag[i_data], w[0], w[1], w[2], w[3], w[4], w[5])
+        loss_cal = loss(N_BS, h_ch[i_data], H_sample_real[i_data], H_sample_imag[i_data], w)
         
         loss_array.append(loss_cal)
     
@@ -385,7 +322,15 @@ for i_eps in range(N_eps):
 
 print('Result - weight final: ', np.array([w]))  
 
+    
+# plt.plot(loss_mean_array, label='QNN Loss, $N_{data}=50$')
+# plt.grid(True)
+# plt.title('QNN Loss')
+# plt.xlabel('Episode')
+# plt.ylabel('Loss')
 
+# plt.legend(loc='best')
+# plt.show()
 
 plt.plot(loss_mean_array, label="QNN $N_{data}$ ="+ str(N_data))
 # plt.fill_between(np.arange(N_eps), loss_max_array, loss_min_array, color='grey', alpha=0.5)
