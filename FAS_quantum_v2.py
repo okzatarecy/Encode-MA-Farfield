@@ -5,13 +5,6 @@ Created on Tue Mar 25 18:25:56 2025
 @author: orecy
 """
 
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Mar 18 19:40:33 2025
-
-@author: orecy
-"""
-
 import numpy as np
 import matplotlib.pyplot as plt # Import matplotlib.pyplot
 
@@ -121,8 +114,8 @@ def ch_simp(N_port, N_BS, WL):
 
 ch_gen, H_real, H_imag = ch_simp(N_port, N_BS, WL)
 h_ch = np.reshape(ch_gen,(-1,1))
-H_real = np.round(np.real(h_ch),5).flatten()
-H_imag = np.round(np.imag(h_ch),5).flatten()
+H_real = H_real.flatten()
+H_imag = H_imag.flatten()
         
 # %%
 w_1 = 0
@@ -152,12 +145,12 @@ def Q_sampler_est(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots):
         
     qc1.barrier()
     
-    qc1.cx(q[0], q[1])
-    qc1.cx(q[1], q[2])
-    qc1.cx(q[2], q[3])
-    qc1.cx(q[3], q[4])
-    qc1.cx(q[4], q[5])
-    qc1.cx(q[5], q[0])
+    qc1.cz(q[0], q[1])
+    qc1.cz(q[1], q[2])
+    qc1.cz(q[2], q[3])
+    qc1.cz(q[3], q[4])
+    qc1.cz(q[4], q[5])
+    qc1.cz(q[5], q[0])
 
     qc1.barrier()
         
@@ -170,14 +163,14 @@ def Q_sampler_est(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots):
     
     qc1.barrier()
     
-    # qc1.cz(q[0], q[1])
-    # qc1.cz(q[1], q[2])
-    # qc1.cz(q[2], q[3])
-    # qc1.cz(q[3], q[4])
-    # qc1.cz(q[4], q[5])
-    # qc1.cz(q[5], q[0])
+    qc1.cz(q[0], q[1])
+    qc1.cz(q[1], q[2])
+    qc1.cz(q[2], q[3])
+    qc1.cz(q[3], q[4])
+    qc1.cz(q[4], q[5])
+    qc1.cz(q[5], q[0])
     
-    # qc1.barrier()
+    qc1.barrier()
         
     qc1.measure(q[0], c[0]) 
     qc1.measure(q[1], c[1]) 
@@ -223,33 +216,6 @@ print("measurement_average_06 =",out[5])
 
 # %% loss function
 
-# def loss(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6):
-#     qc1, counts_sam,out, out1, out2, out3, out4, out5, out6 = Q_sampler_est(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots=1024)
-#     ptx = 5
-#     sigma_n = 1
-    
-#     v1 = np.exp(1j*(out1+out2))     # 1st port
-#     v2 = np.exp(1j*(out3+out4))     # 2nd port
-#     v3 = np.exp(1j*(out5+out6))     # 3rd port
-    
-#     Q = np.array([v1,v2,v3])
-#     V_max = Q[np.argmax(np.abs(Q))]  #looking for biggest magnitude of complex number
-#     V_norm = V_max/abs(V_max)
-    
-#     max_index = np.argmax(np.abs(Q))
-#     snr = ptx*np.abs(ch_gen[max_index] * V_norm)**2/sigma_n
-#     rate_BS1 = np.log2(1+snr[0])
-#     rate_BS2 = np.log2(1+snr[1])
-#     sum_rate = rate_BS1+rate_BS2
-#     # print(cap_P2)
-#     # print(cap_P1+cap_P2)
-#     loss = -(sum_rate)
-#     return loss
-
-# los = loss(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6)
-
-# %%
-# ww = np.random.randn(3, 2) + 1j * np.random.randn(3, 2)
 num_ports=3
 H = ch_gen
 ptx = 5
@@ -265,27 +231,68 @@ def loss(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6):
     V2 = v2/abs(v2)
     Q = np.array([V1,V2])
     
-    def compute_sinr(H, Q, num_ports, sigma_n):
-        sinr = np.zeros(num_ports)
-        for k in range(num_ports):
-            signal = np.abs(H[k,:].conj().T @ Q)**2  # Sinyal ke port p
-            interference = np.sum([np.abs(H[j, :].conj().T @ Q)**2 for j in range(num_ports) if j != k
-                                   ])
-            # interference = np.sum(np.abs(H @ Q)**2) - signal  # Interferensi dari port lain
-            sinr[k] = signal / (interference + sigma_n)  # Hitung SINR port p
-        
-        best_port = np.argmax(sinr)
-        return sinr, best_port
-
-    sinr, best_port = compute_sinr(H, Q, num_ports, sigma_n)
-    # print(sinr)
+    sinr1 = np.abs(H[0,:] @ Q)**2
+    sinr2 = np.abs(H[1,:] @ Q)**2
+    sinr3 = np.abs(H[2,:] @ Q)**2
     
-    sum_rate = np.log2(1 + sinr[best_port])
+    sinr_p1 = sinr1 / (sinr2+sinr3+sigma_n)
+    sinr_p2 = sinr2 / (sinr1+sinr3+sigma_n)
+    sinr_p3 = sinr3 / (sinr1+sinr2+sigma_n)
+    
+    sinr_all = np.array([sinr_p1,sinr_p2,sinr_p3])
+    # best_port = np.argmax(sinr_all)
+    # sum_rate = np.log2(1 + sinr_all[best_port])
+    
+    indices = np.argsort(sinr_all)[-2:]
+    best_sinr = sinr_all[indices]
+    
+    sum_rate1 = np.log2(1 + best_sinr[0])
+    sum_rate2 = np.log2(1 + best_sinr[1])
+    sum_rate = sum_rate1+sum_rate2
 
     loss = -(sum_rate)
     return loss
 
 los = loss(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6)
+
+# %%
+# ww = np.random.randn(3, 2) + 1j * np.random.randn(3, 2)
+# num_ports=3
+# H = ch_gen
+# ptx = 5
+# sigma_n = 1
+    
+# def loss(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6):
+    
+#     qc1, counts_sam,out, out1, out2, out3, out4, out5, out6 = Q_sampler_est(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots=2096)
+    
+#     v1 = np.exp(1j*(2*np.pi/Lambda)*(out1+out3+out5))     # 1st BS
+#     v2 = np.exp(1j*(2*np.pi/Lambda)*(out2+out4+out6))     # 2nd BS
+#     V1 = v1/abs(v1)
+#     V2 = v2/abs(v2)
+#     Q = np.array([V1,V2])
+    
+#     def compute_sinr(H, Q, num_ports, sigma_n):
+#         sinr = np.zeros(num_ports)
+#         for k in range(num_ports):
+#             signal = np.abs(H[k,:].conj().T @ Q)**2  # Sinyal ke port p
+#             interference = np.sum([np.abs(H[j, :].conj().T @ Q)**2 for j in range(num_ports) if j != k
+#                                    ])
+#             # interference = np.sum(np.abs(H @ Q)**2) - signal  # Interferensi dari port lain
+#             sinr[k] = signal / (interference + sigma_n)  # Hitung SINR port p
+        
+#         best_port = np.argmax(sinr)
+#         return sinr, best_port
+
+#     sinr, best_port = compute_sinr(H, Q, num_ports, sigma_n)
+#     # print(sinr)
+    
+#     sum_rate = np.log2(1 + sinr[best_port])
+
+#     loss = -(sum_rate)
+#     return loss
+
+# los = loss(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6)
 # %%
 
 def gradient(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, w_index):
@@ -294,8 +301,8 @@ def gradient(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, w_index
         
     w = np.array([w_1, w_2, w_3, w_4, w_5, w_6])
         
-    w_min = w
-    w_plus = w
+    w_min = w.copy()
+    w_plus = w.copy()
     
     w_min[w_index] = w_min[w_index] - shift
     loss_min = loss(N_BS, ch_gen, H_real, H_imag, w_min[0], w_min[1], w_min[2], w_min[3], w_min[4], w_min[5])
@@ -303,7 +310,8 @@ def gradient(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, w_index
     w_plus[w_index] = w_plus[w_index] + shift
     loss_plus = loss(N_BS, ch_gen, H_real, H_imag, w_plus[0], w_plus[1], w_plus[2], w_plus[3], w_plus[4], w_plus[5])
         
-    grad = (1/2*np.sin(shift)) * (loss_min-loss_plus)
+    # grad = (1/2*np.sin(shift)) * (loss_min-loss_plus)
+    grad = (loss_plus - loss_min) / 2
         
     return grad, loss_min, loss_plus
 
@@ -340,13 +348,13 @@ h_ch = []
 
 for i_channel in range(N_data):
     # ch_gen = channel_gen(k_nd_BS, d_BS, k_rmd_U, d_U)
-    ch_gen, H_real, H_imag = ch_simp(N_port, N_BS, WL) 
+    ch_gen, H_real_s, H_imag_s = ch_simp(N_port, N_BS, WL) 
 
 
     inputs_og = np.reshape(ch_gen,(-1,1))
     inputs = np.round(inputs_og, 5)
-    H_real = np.real(inputs).flatten()
-    H_imag = np.imag(inputs).flatten()    
+    H_real = H_real_s.flatten()
+    H_imag = H_imag_s.flatten()    
     
     h_ch.append(ch_gen)
     H_sample_real.append(H_real)
@@ -365,6 +373,7 @@ for i_eps in range(N_eps):
             
             learn_step = learn_step_init / np.sqrt(i_eps+1)
             # learn_step = 0.5 * learn_step_init * (1+np.cos((np.pi*(i_eps+1))/N_eps))
+            # learn_step = learn_step_init
             
             w[i_weight] = w[i_weight] - ((learn_step)*grad)
             # w = np.array(w[i_weight])

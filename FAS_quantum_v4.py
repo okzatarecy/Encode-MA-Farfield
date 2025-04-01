@@ -141,13 +141,12 @@ def Q_sampler_est(ch_gen, H_real, H_imag, w_1, w_2, w_3, shots):
     for j in range(ch_gen.shape[0]):
         for k in range(ch_gen.shape[1]):
             qc1.ry(LA.norm(ch_gen[j,k]), q[j])
-        
 
     qc1.barrier()
     
-    qc1.cx(q[0], q[1])
-    qc1.cx(q[1], q[2])
-    qc1.cx(q[2], q[0])
+    qc1.cz(q[0], q[1])
+    qc1.cz(q[1], q[2])
+    qc1.cz(q[2], q[0])
 
     qc1.barrier()
         
@@ -245,8 +244,10 @@ def loss(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3):
     V3 = v3/abs(v3)
     Q = np.array([V1,V2,V3])
     
-    def compute_sinr(H, Q, num_ports, sigma_n):
+    def compute_sinr(H, Q, sigma_n):
+        num_ports = Q.shape[1]
         sinr_port = np.zeros(num_ports)
+        
         for k in range(num_ports):
             signal = np.abs(H[k,:].conj().T * Q[k])**2  # Sinyal ke port p
             interference = np.sum([np.abs(H[j, :].conj().T * Q[j])**2 for j in range(num_ports) if j != k
@@ -275,8 +276,8 @@ def gradient(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_index):
         
     w = np.array([w_1, w_2, w_3])
         
-    w_min = w
-    w_plus = w
+    w_min = w.copy()
+    w_plus = w.copy()
     
     w_min[w_index] = w_min[w_index] - shift
     loss_min = loss(N_BS, ch_gen, H_real, H_imag, w_min[0], w_min[1], w_min[2])
@@ -284,7 +285,8 @@ def gradient(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_index):
     w_plus[w_index] = w_plus[w_index] + shift
     loss_plus = loss(N_BS, ch_gen, H_real, H_imag, w_plus[0], w_plus[1], w_plus[2])
         
-    grad = (1/2*np.sin(shift)) * (loss_min-loss_plus)
+    # grad = (1/2*np.sin(shift)) * (loss_min-loss_plus)
+    grad = (loss_plus - loss_min) / 2
         
     return grad, loss_min, loss_plus
 
@@ -299,7 +301,7 @@ grad_1, loss_min, loss_plus = gradient(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w
 WL = 0.5
 N_eps = 10
 N_data = 100
-learn_step = 1e-4
+learn_step = 0.1
 w_1 = np.pi
 w_2 = np.pi
 w_3 = np.pi
@@ -320,8 +322,8 @@ for i_channel in range(N_data):
 
     inputs_og = np.reshape(ch_gen,(-1,1))
     inputs = np.round(inputs_og, 5)
-    H_real = np.real(inputs).flatten()
-    H_imag = np.imag(inputs).flatten()    
+    H_real = H_real.flatten()
+    H_imag = H_imag.flatten()    
     
     h_ch.append(ch_gen)
     H_sample_real.append(H_real)
