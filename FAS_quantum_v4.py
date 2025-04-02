@@ -193,7 +193,7 @@ def Q_sampler_est(ch_gen, H_real, H_imag, w_1, w_2, w_3, shots):
 
 #H_real = H_sample_real[0]
 #H_imag = H_sample_imag[0]
-qc1, counts_sam,out, out1, out2, out3 = Q_sampler_est(ch_gen, H_real, H_imag, w_1, w_2, w_3, shots=1024)
+qc1, counts_sam,out, out1, out2, out3 = Q_sampler_est(h_ch, H_real, H_imag, w_1, w_2, w_3, shots=1024)
 print("measurement_average_01 =",out[0])
 print("measurement_average_02 =",out[1])
 print("measurement_average_03 =",out[2])

@@ -116,6 +116,8 @@ ch_gen, H_real, H_imag = ch_simp(N_port, N_BS, WL)
 h_ch = np.reshape(ch_gen,(-1,1))
 H_real = H_real.flatten()
 H_imag = H_imag.flatten()
+
+
         
 # %%
 w_1 = 0
@@ -129,7 +131,7 @@ def ave_meas(count):
      total = count.get('0', 0) + count.get('1', 0)
      return count.get('1', 0) / total if total > 0 else 0
 
-def Q_sampler_est(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots):
+def Q_sampler_est(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6):
         
     q = QuantumRegister(H_real.size, 'q')
     c = ClassicalRegister(H_real.size, 'c')
@@ -177,8 +179,13 @@ def Q_sampler_est(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots):
     qc1.measure(q[2], c[2]) 
     qc1.measure(q[3], c[3])
     qc1.measure(q[4], c[4]) 
-    qc1.measure(q[5], c[5])     
-        
+    qc1.measure(q[5], c[5]) 
+
+    return qc1
+
+def Q_decode(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots):    
+       
+    qc1 =  Q_sampler_est(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6)
     sampler = StatevectorSampler()
         
     job_sam = sampler.run( [(qc1)], shots = shots)
@@ -206,7 +213,7 @@ def Q_sampler_est(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots):
 
 #H_real = H_sample_real[0]
 #H_imag = H_sample_imag[0]
-qc1, counts_sam,out, out1, out2, out3, out4, out5, out6 = Q_sampler_est(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots=1024)
+qc1, counts_sam,out, out1, out2, out3, out4, out5, out6 = Q_decode(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots=1024)
 print("measurement_average_01 =",out[0])
 print("measurement_average_02 =",out[1])
 print("measurement_average_03 =",out[2])
@@ -223,7 +230,7 @@ sigma_n = 1
     
 def loss(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6):
     
-    qc1, counts_sam,out, out1, out2, out3, out4, out5, out6 = Q_sampler_est(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots=1024)
+    qc1, counts_sam,out, out1, out2, out3, out4, out5, out6 = Q_decode(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots=1024)
     
     v1 = np.exp(1j*(2*np.pi/Lambda)*(out1+out3+out5))     # 1st BS
     v2 = np.exp(1j*(2*np.pi/Lambda)*(out2+out4+out6))     # 2nd BS
@@ -249,6 +256,12 @@ def loss(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6):
     sum_rate1 = np.log2(1 + best_sinr[0])
     sum_rate2 = np.log2(1 + best_sinr[1])
     sum_rate = sum_rate1+sum_rate2
+    
+    # if sum_rate < 2:
+    #     sum_rate = sum_rate
+    # else:
+    #     sum_rate = 2
+        
 
     loss = -(sum_rate)
     return loss
@@ -310,8 +323,8 @@ def gradient(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, w_index
     w_plus[w_index] = w_plus[w_index] + shift
     loss_plus = loss(N_BS, ch_gen, H_real, H_imag, w_plus[0], w_plus[1], w_plus[2], w_plus[3], w_plus[4], w_plus[5])
         
-    # grad = (1/2*np.sin(shift)) * (loss_min-loss_plus)
-    grad = (loss_plus - loss_min) / 2
+    grad = (1/2*np.sin(shift)) * (loss_min-loss_plus)
+    # grad = (loss_plus - loss_min) / 2
         
     return grad, loss_min, loss_plus
 
@@ -327,7 +340,7 @@ grad_1, loss_min, loss_plus = gradient(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w
 # %%
 
 WL = 0.5
-N_eps = 20
+N_eps = 10
 N_data = 100
 learn_step = 0.1
 w_1 = np.pi
@@ -359,6 +372,17 @@ for i_channel in range(N_data):
     h_ch.append(ch_gen)
     H_sample_real.append(H_real)
     H_sample_imag.append(H_imag)
+    
+# Hitung channel gain untuk setiap sampel (||H_i||^2)
+channel_gains = np.array([
+    [np.linalg.norm(H[i])**2 for i in range(H.shape[0])]
+    for H in h_ch
+])  # Hasil: (3 sampel × 3 ports)
+
+adjacency_matrix = np.corrcoef(channel_gains.T)
+
+# Pastikan diagonal bernilai 0 (tidak ada self-loop)
+a = np.fill_diagonal(adjacency_matrix, 0)
 
 loss_mean_array =[]
 loss_min_array = []
