@@ -44,7 +44,7 @@ L_r = 2; # Number of receive paths
 
 # def channel_gen(k_nd_BS, d_BS, k_rmd_U, d_U):
 #     angle1 = 80
-#     angle2 = 80
+#     angle2 = 100
 #     scatters_coordinate_t = np.array([[1.7, 1.5], [0.3,-1.2]]); # scatters coordinate form the origin O_t (x, y)
 #     l_t = np.sqrt(scatters_coordinate_t[:, 0]**2 + scatters_coordinate_t[:,1]**2 \
 #                   - (2 * scatters_coordinate_t[:,0] * scatters_coordinate_t[:,1] \
@@ -221,6 +221,112 @@ print("measurement_average_04 =",out[3])
 print("measurement_average_05 =",out[4])
 print("measurement_average_06 =",out[5])
 
+# %%
+
+# w_1 = 0
+# w_2 = 0
+# w_3 = 0
+# w_4 = 0
+# w_5 = 0
+# w_6 = 0
+
+# def ave_meas(count):
+#      total = count.get('0', 0) + count.get('1', 0)
+#      return count.get('1', 0) / total if total > 0 else 0
+
+# def Q_sampler_est(h_ch, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6):
+        
+#     q = QuantumRegister(H_real.size, 'q')
+#     c = ClassicalRegister(H_real.size, 'c')
+#     qc1= QuantumCircuit(q,c)
+    
+#     h_abs1 = np.abs(h_ch)
+#     h_abs = h_abs1.flatten()
+#     h_max = np.max(h_abs)     
+#     angle_amp =  (h_abs / h_max) * np.pi
+#     angle_phase = np.angle(h_ch).flatten()
+    
+#     for k in range(H_real.size):    
+#         qc1.ry(angle_amp[k], q[k])
+            
+#     for i in range(H_real.size):
+#         qc1.rz(angle_phase[i], q[i])
+        
+#     qc1.barrier()
+    
+#     qc1.cz(q[0], q[1])
+#     qc1.cz(q[1], q[2])
+#     qc1.cz(q[2], q[3])
+#     qc1.cz(q[3], q[4])
+#     qc1.cz(q[4], q[5])
+#     qc1.cz(q[5], q[0])
+
+#     qc1.barrier()
+        
+#     qc1.ry(w_1, q[0])
+#     qc1.ry(w_2, q[1])
+#     qc1.ry(w_3, q[2])
+#     qc1.ry(w_4, q[3])
+#     qc1.ry(w_5, q[4])
+#     qc1.ry(w_6, q[5])
+    
+#     qc1.barrier()
+    
+#     # Superposition Combination
+#     qc1.h(q[0])  # Superposition untuk out1, out3, out5
+#     qc1.cx(q[2], q[0])
+#     qc1.cx(q[4], q[0])
+    
+#     qc1.h(q[1])  # Superposition untuk out2, out4, out6
+#     qc1.cx(q[3], q[1])
+#     qc1.cx(q[5], q[1])
+    
+#     qc1.barrier()
+        
+#     qc1.measure(q[0], c[0]) 
+#     qc1.measure(q[1], c[1]) 
+
+#     return qc1
+
+# qc = Q_sampler_est(ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6)
+
+# def Q_decode(h_ch, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots):    
+       
+#     qc1 =  Q_sampler_est(h_ch, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6)
+#     sampler = StatevectorSampler()
+        
+#     job_sam = sampler.run( [(qc1)], shots = shots)
+#     result_sam = job_sam.result()
+#     counts_sam = result_sam[0].data.c.get_counts()
+        
+#     simp_counts_01 = marginal_counts(counts_sam, indices=[0])
+#     simp_counts_02 = marginal_counts(counts_sam, indices=[1])
+#     simp_counts_03 = marginal_counts(counts_sam, indices=[2])
+#     simp_counts_04 = marginal_counts(counts_sam, indices=[3])
+#     simp_counts_05 = marginal_counts(counts_sam, indices=[4])
+#     simp_counts_06 = marginal_counts(counts_sam, indices=[5])
+#         # counts_sam = result_sam[0].data.c.get_counts()
+        
+#     out1 = ave_meas(simp_counts_01)
+#     out2 = ave_meas(simp_counts_02)
+#     out3 = ave_meas(simp_counts_03)
+#     out4 = ave_meas(simp_counts_04)
+#     out5 = ave_meas(simp_counts_05)
+#     out6 = ave_meas(simp_counts_06)
+        
+#     out = [out1, out2, out3, out4, out5, out6]
+
+#     return qc1, counts_sam, out, out1, out2, out3, out4, out5, out6
+
+# #H_real = H_sample_real[0]
+# #H_imag = H_sample_imag[0]
+# qc1, counts_sam,out, out1, out2, out3, out4, out5, out6 = Q_decode(h_ch, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots=1024)
+# print("measurement_average_01 =",out[0])
+# print("measurement_average_02 =",out[1])
+# print("measurement_average_03 =",out[2])
+# print("measurement_average_04 =",out[3])
+# print("measurement_average_05 =",out[4])
+# print("measurement_average_06 =",out[5])
 # %% loss function
 
 num_ports=3
@@ -230,7 +336,7 @@ sigma_n = 1
     
 def loss(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6):
     
-    qc1, counts_sam,out, out1, out2, out3, out4, out5, out6 = Q_decode(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots=1024)
+    qc1, counts_sam,out, out1, out2, out3, out4, out5, out6 = Q_decode(ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots=1024)
     
     v1 = np.exp(1j*(2*np.pi/Lambda)*(out1+out3+out5))     # 1st BS
     v2 = np.exp(1j*(2*np.pi/Lambda)*(out2+out4+out6))     # 2nd BS
@@ -255,13 +361,7 @@ def loss(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6):
     
     sum_rate1 = np.log2(1 + best_sinr[0])
     sum_rate2 = np.log2(1 + best_sinr[1])
-    sum_rate = sum_rate1+sum_rate2
-    
-    # if sum_rate < 2:
-    #     sum_rate = sum_rate
-    # else:
-    #     sum_rate = 2
-        
+    sum_rate = sum_rate1+sum_rate2        
 
     loss = -(sum_rate)
     return loss
@@ -340,8 +440,8 @@ grad_1, loss_min, loss_plus = gradient(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w
 # %%
 
 WL = 0.5
-N_eps = 10
-N_data = 100
+N_eps = 100
+N_data = 4
 learn_step = 0.1
 w_1 = np.pi
 w_2 = np.pi
@@ -365,7 +465,8 @@ for i_channel in range(N_data):
 
 
     inputs_og = np.reshape(ch_gen,(-1,1))
-    inputs = np.round(inputs_og, 5)
+    # H_real = np.round(np.real(inputs_og),5).flatten()
+    # H_imag = np.round(np.imag(inputs_og),5).flatten()
     H_real = H_real_s.flatten()
     H_imag = H_imag_s.flatten()    
     
@@ -373,16 +474,6 @@ for i_channel in range(N_data):
     H_sample_real.append(H_real)
     H_sample_imag.append(H_imag)
     
-# Hitung channel gain untuk setiap sampel (||H_i||^2)
-channel_gains = np.array([
-    [np.linalg.norm(H[i])**2 for i in range(H.shape[0])]
-    for H in h_ch
-])  # Hasil: (3 sampel × 3 ports)
-
-adjacency_matrix = np.corrcoef(channel_gains.T)
-
-# Pastikan diagonal bernilai 0 (tidak ada self-loop)
-a = np.fill_diagonal(adjacency_matrix, 0)
 
 loss_mean_array =[]
 loss_min_array = []

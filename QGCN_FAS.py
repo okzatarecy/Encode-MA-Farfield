@@ -7,15 +7,15 @@ Created on Wed Apr  2 13:54:54 2025
 
 import numpy as np
 from qiskit import QuantumCircuit
-from qiskit.circuit.library import RYGate, CXGate
 from qiskit.circuit import QuantumRegister, ClassicalRegister, QuantumCircuit, ParameterVector
+from qiskit import transpile
 from qiskit.primitives import StatevectorSampler, StatevectorEstimator
-from qiskit.quantum_info import Statevector
 from qiskit.result import marginal_counts
 from math import pi
 import scipy
 from scipy.special import jv
 from numpy import linalg as LA
+import matplotlib.pyplot as plt
 
 # %%
 
@@ -158,41 +158,44 @@ def ave_meas(count):
      total = count.get('0', 0) + count.get('1', 0)
      return count.get('1', 0) / total if total > 0 else 0
  
-def Q_decode(H, A):
+def Q_decode(H, A, shots):
     
     qc, theta = build_qgcn(H, A, num_layers=1)
     qc.draw()
     sampler = StatevectorSampler() 
-    param_values = np.random.rand(len(theta))
-    qc_assigned = qc.assign_parameters({theta: param_values}) 
-    job = sampler.run( [(qc_assigned)], shots=1000)
+    
+    job = sampler.run( [(qc)], shots=shots)
     result = job.result()
     counts_sam = result[0].data.c.get_counts()
     
-    simp_counts_01 = marginal_counts(counts_sam, indices=[0])
-    simp_counts_02 = marginal_counts(counts_sam, indices=[1])
     simp_counts_03 = marginal_counts(counts_sam, indices=[2])
+    simp_counts_04 = marginal_counts(counts_sam, indices=[3])
+    simp_counts_05 = marginal_counts(counts_sam, indices=[4])
     
-    out1 = ave_meas(simp_counts_01)
-    out2 = ave_meas(simp_counts_02)
     out3 = ave_meas(simp_counts_03)
+    out4 = ave_meas(simp_counts_04)
+    out5 = ave_meas(simp_counts_05)
     
-    out = [out1, out2, out3]
-    return out, out1,out2, out3
+    out = [out3, out4, out5]
+    return out, out3,out4, out5
 
-out, out1,out2, out3 = Q_decode(H, A)
+out, out3,out4, out5 = Q_decode(H, A, shots =1024)
 
 print("measurement_average_01 =",out[0])
 print("measurement_average_02 =",out[1])
 print("measurement_average_03 =",out[2])
 
 
+# %%
+#
 
 def train_qgcn(H, A, shots, epochs=100, lr=0.01):
     qc, theta = build_qgcn(H, A, num_layers=1)
     sampler = StatevectorSampler()
-        
-    job_sam = sampler.run( [(qc)], shots = shots)
+    param_values = np.random.rand(len(theta))
+    qc_assigned = qc.assign_parameters({theta: param_values})
+    
+    job_sam = sampler.run( [(qc_assigned)], shots = shots)
     result_sam = job_sam.result()
     counts_sam = result_sam[0].data.c.get_counts()
     
