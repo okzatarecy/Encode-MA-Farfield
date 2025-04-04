@@ -112,18 +112,29 @@ def build_qgcn(H, A, num_layers=1):
     h_max = np.max(h_abs)
     
     # Encode channel information
-    for port in range(3):
-        for ant in range(2):
-            # Amplitude encoding (safe normalization)
-            angle_amp = (h_abs[port, ant] / h_max) * np.pi
-            qc.ry(angle_amp, ant)
+    # for port in range(3):
+    #     for ant in range(2):
+    #         # Amplitude encoding (safe normalization)
+    #         angle_amp = (h_abs[port, ant] / h_max) * np.pi
+    #         qc.ry(angle_amp, ant)
             
 
-            # Phase encoding
-            angle_phase = np.angle(H[port, ant])
-            qc.rz(angle_phase, ant)
-            qc.barrier()
-    qc.barrier()
+    #         # Phase encoding
+    #         angle_phase = np.angle(H[port, ant])
+    #         qc.rz(angle_phase, ant)
+    #         qc.barrier()
+    # qc.barrier()
+    
+    
+    for port in range(3):
+       # Gabungkan informasi kedua antenna
+       combined_angle = np.arctan(np.sum(h_abs[port,:])/h_max * np.pi/2)
+       qc.ry(combined_angle, port+2)  # Qubit 2-4 adalah port
+       
+       # Encoding fase
+       mean_phase = np.mean(np.angle(H[port,:]))
+       qc.rz(mean_phase, port+2)
+       qc.barrier()
     
     # Parameterized layers
     theta = ParameterVector('θ', length=num_layers*(2*num_nodes + 1))
