@@ -108,13 +108,13 @@ A = np.array([
 
 # %% quantum circuit
 
-def Q_encode(H, H_real, H_imag, w_1, w_2, w_3):
+def Q_encode(H, H_real, H_imag, w_1, w_2, w_3, V0, V1):
     
     q1 = QuantumRegister(H.size, 'q1')
     qc1 = QuantumCircuit(q1)
     
     q2 = QuantumRegister(4, 'q2')
-    c2 = ClassicalRegister(1, 'c2')
+    c2 = ClassicalRegister(3, 'c2')
     qc2 = QuantumCircuit(q2,c2)
     
     final_qc = QuantumCircuit(q1, q2, c2)  # Deklarasi semua register sekaligus
@@ -153,14 +153,53 @@ def Q_encode(H, H_real, H_imag, w_1, w_2, w_3):
     
     final_qc.barrier()
     
-    final_qc.cx(q2[2],q2[3])
-    final_qc.measure(q2[3], c2[0])
+    
+    # def quantum_pooling_layer(final_qc, control_qubit, target_qubits, classical_bits, V0_params, V1_params):
+    #     """
+    #     Menerapkan pooling layer ke quantum circuit.
+
+    #     Args:
+    #         - qc             : QuantumCircuit object
+    #         - control_qubit  : Qubit yang akan diukur (dan collapse)
+    #         - target_qubit   : Qubit yang menerima hasil pooling
+    #         - classical_bit  : ClassicalRegister index untuk menyimpan hasil pengukuran
+    #         - V0_params      : Tuple (rz1, ry, rz2) untuk unitary V0 jika hasil ukur 0
+    #         - V1_params      : Tuple (rz1, ry, rz2) untuk unitary V1 jika hasil ukur 1
+    #         """
+    #     final_qc.measure(control_qubit, classical_bits)
+        
+    #     with final_qc.switch(classical_bits) as case:
+    #         with case(0):  # hasil ukur 0 → V0
+    #             final_qc.rz(V0[0], target_qubits)
+    #             final_qc.ry(V0[1], target_qubits)
+    #             final_qc.rz(V0[2], target_qubits)
+
+    #         with case(1):  # hasil ukur 1 → V1
+    #             final_qc.rz(V1[0], target_qubits)
+    #             final_qc.ry(V1[1], target_qubits)
+    #             final_qc.rz(V1[2], target_qubits)
+
+        # final_qc.rz(V0_params[0], target_qubits).c_if((classical_bits, 0))    
+        # final_qc.ry(V0_params[1], target_qubits).if_test((classical_bits, 0))
+        # final_qc.rz(V0_params[2], target_qubits).if_test((classical_bits, 0))
+        
+        # final_qc.rz(V1_params[0], target_qubits).if_test((classical_bits, 1))
+        # final_qc.ry(V1_params[1], target_qubits).if_test((classical_bits, 1))
+        # final_qc.rz(V1_params[2], target_qubits).if_test((classical_bits, 1))
+        
+    final_qc.swap(q2[2], q2[1])
+    # quantum_pooling_layer(final_qc, q2[0], q2[1], c2[0], V0_params=V0, V1_params=V1)     
+    final_qc.measure(q2[0], c2[0])
+    final_qc.swap(q2[2], q2[1])
+    final_qc.measure(q2[1], c2[1])
+    final_qc.swap(q2[3], q2[2])
+    final_qc.measure(q2[2], c2[2])
     
     return final_qc
-w_1 = 0
-w_2 = 0
-w_3 = 0
-qc2 = Q_encode(H, H_real, H_imag, w_1, w_2, w_3)
+w_1, w_2, w_3 = np.pi/6, np.pi/5, np.pi/4
+V0 = (np.pi/4, np.pi/3, np.pi/2)
+V1 = (np.pi/6, np.pi/4, np.pi/3)
+qc2 = Q_encode(H, H_real, H_imag, w_1, w_2, w_3, V0, V1)
 
 
 # def build_qgcn(H, A, num_layers=1):
@@ -220,8 +259,6 @@ qc2 = Q_encode(H, H_real, H_imag, w_1, w_2, w_3)
 #     qc.measure(q[4], c[2])
 #     return qc,theta
 
-# circut,theta = build_qgcn(H, A, num_layers=1)
-
 # %%
 def ave_meas(count):
      total = count.get('0', 0) + count.get('1', 0)
@@ -229,7 +266,7 @@ def ave_meas(count):
  
 def Q_decode(H, H_real, H_imag, w_1, w_2, w_3, shots):
     
-    qc = Q_encode(H, H_real, H_imag, w_1, w_2, w_3)
+    qc = Q_encode(H, H_real, H_imag, w_1, w_2, w_3, V0, V1)
     sampler = StatevectorSampler() 
     
     job = sampler.run( [(qc)], shots=shots)
@@ -237,94 +274,67 @@ def Q_decode(H, H_real, H_imag, w_1, w_2, w_3, shots):
     counts_sam = result[0].data.c2.get_counts()
     
     simp_counts_01 = marginal_counts(counts_sam, indices=[0])
-
-    
+    simp_counts_02 = marginal_counts(counts_sam, indices=[1])
+    simp_counts_03 = marginal_counts(counts_sam, indices=[2])
+       # counts_sam = result_sam[0].data.c.get_counts()
+       
     out1 = ave_meas(simp_counts_01)
-    
-    out = [out1]
-    return qc, out, out1
+    out2 = ave_meas(simp_counts_02)
+    out3 = ave_meas(simp_counts_03)
+       
+    out = [out1, out2, out3]
+    return qc, out, out1, out2, out3
 
-w_1 = np.pi
-w_2 = np.pi
-w_3 = np.pi
-qc, out, out1 = Q_decode(H, H_real, H_imag, w_1, w_2, w_3, shots=1024)
+w_1, w_2, w_3 = np.pi/6, np.pi/5, np.pi/4
+V0 = (np.pi/4, np.pi/3, np.pi/2)
+V1 = (np.pi/6, np.pi/4, np.pi/3)
+qc, out, out1, out2, out3 = Q_decode(H, H_real, H_imag, w_1, w_2, w_3, shots=1024)
 
 print("measurement_average_01 =",out[0])
+print("measurement_average_02 =",out[1])
+print("measurement_average_03 =",out[2])
 
 
 # %%
 #
-
-def train_qgcn(H, A, shots, epochs=100, lr=0.01):
-    qc, theta = build_qgcn(H, A, num_layers=1)
-    sampler = StatevectorSampler()
-    param_values = np.random.rand(len(theta))
-    qc_assigned = qc.assign_parameters({theta: param_values})
+num_ports=3
+ptx = 5
+sigma_n = 1
     
-    job_sam = sampler.run( [(qc_assigned)], shots = shots)
-    result_sam = job_sam.result()
-    counts_sam = result_sam[0].data.c.get_counts()
+def loss(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6):
     
-    param_values = np.random.rand(len(theta)) * 2*np.pi
-    history = []
+    qc, out, out1 = Q_decode(H, H_real, H_imag, w_1, w_2, w_3, shots=1024)
     
-    for epoch in range(epochs):
-        # Gradient calculation
-        gradients = np.zeros(len(theta))
-        for i in range(len(theta)):
-            # Plus shift
-            params_plus = param_values.copy()
-            params_plus[i] += np.pi/2
-            qc_plus = qc.bind_parameters({theta: params_plus})
-            state_plus = execute(qc_plus, backend).result().get_statevector()
-            V_plus = state_plus[:2]
-            rate_plus = np.sum([np.abs(H[k] @ V_plus)**2 for k in range(3)])
-            
-            # Minus shift
-            params_minus = param_values.copy()
-            params_minus[i] -= np.pi/2
-            qc_minus = qc.bind_parameters({theta: params_minus})
-            state_minus = execute(qc_minus, backend).result().get_statevector()
-            V_minus = state_minus[:2]
-            rate_minus = np.sum([np.abs(H[k] @ V_minus)**2 for k in range(3)])
-            
-            gradients[i] = (rate_plus - rate_minus) / 2
-        
-        # Update parameters
-        param_values -= lr * gradients
-        
-        # Track progress
-        current_state = execute(qc.bind_parameters({theta: param_values}), backend).result().get_statevector()
-        sum_rate = np.sum([np.abs(H[k] @ current_state[:2])**2 for k in range(3)])
-        history.append(sum_rate)
-        
-        if epoch % 10 == 0:
-            print(f"Epoch {epoch}: Sum Rate = {sum_rate:.4f}")
+    # v1 = np.exp(1j*(2*np.pi/Lambda)*(out1))     # 1st BS
+    # v2 = np.exp(1j*(2*np.pi/Lambda)*(out2))     # 2nd BS
+    # v1 = np.exp(1j*2*np.pi*(out1))     # 1st BS
+    # v2 = np.exp(1j*2*np.pi*(out2))     # 2nd BS
+    v1 = np.exp(1j*(out1+(0)))     # 1st BS
+    V1 = v1/abs(v1)
+    V2 = v2/abs(v2)
+    Q = np.array([V1,V2])
     
-    return param_values, history
+    
+    sinr1 = np.abs(H[0,:] @ Q)**2
+    sinr2 = np.abs(H[1,:] @ Q)**2
+    sinr3 = np.abs(H[2,:] @ Q)**2
+    
+    sinr_p1 = sinr1 / (sinr2+sinr3+sigma_n)
+    sinr_p2 = sinr2 / (sinr1+sinr3+sigma_n)
+    sinr_p3 = sinr3 / (sinr1+sinr2+sigma_n)
+    
+    sinr_all = np.array([sinr_p1,sinr_p2,sinr_p3])
+    # best_port = np.argmax(sinr_all)
+    # sum_rate = np.log2(1 + sinr_all[best_port])
+    
+    indices = np.argsort(sinr_all)[-2:]
+    best_sinr = sinr_all[indices]
+    
+    sum_rate1 = np.log2(1 + best_sinr[0])
+    sum_rate2 = np.log2(1 + best_sinr[1])
+    sum_rate = sum_rate1+sum_rate2        
 
-# # ==============================
-# # 4. Run Training and Visualization
-# # ==============================
-optimal_params, history = train_qgcn(H, A)
+    loss = -1*(sum_rate)
+    return loss
 
-# # Plot training progress
-# plt.plot(history)
-# plt.xlabel('Epoch')
-# plt.ylabel('Sum Rate')
-# plt.title('QGCN Training Progress')
-# plt.show()
-
-# # ==============================
-# # 5. Result Analysis
-# # ==============================
-# qc_final = build_qgcn(H, A)[0].bind_parameters({theta: optimal_params})
-# state_final = execute(qc_final, Aer.get_backend('statevector_simulator')).result().get_statevector()
-# V_optimal = state_final[:2]
-# rates = [np.abs(H[k] @ V_optimal)**2 for k in range(3)]
-# best_port = np.argmax(rates)
-
-# print("\n=== Final Results ===")
-# print(f"Optimal Precoding Vector: {V_optimal}")
-# print(f"Port Rates: {np.round(rates, 4)}")
-# print(f"Best Port: Port {best_port + 1} (Rate: {rates[best_port]:.4f})")
+los = loss(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6)
