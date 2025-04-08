@@ -9,8 +9,9 @@ import numpy as np
 from qiskit import QuantumCircuit
 from qiskit.circuit import QuantumRegister, ClassicalRegister, QuantumCircuit, ParameterVector
 from qiskit import transpile
-from qiskit.primitives import StatevectorSampler, StatevectorEstimator
+from qiskit.primitives import StatevectorSampler, StatevectorEstimator, Sampler
 from qiskit.result import marginal_counts
+from qiskit.visualization import plot_histogram
 from qiskit.circuit import Gate
 from math import pi
 import scipy
@@ -111,27 +112,23 @@ A = np.array([
 def Q_encode(H, H_real, H_imag, w_1, w_2, w_3, V0, V1):
     
     q1 = QuantumRegister(H.size, 'q1')
-    qc1 = QuantumCircuit(q1)
-    
     q2 = QuantumRegister(4, 'q2')
-    c2 = ClassicalRegister(3, 'c2')
-    qc2 = QuantumCircuit(q2,c2)
+    c2 = ClassicalRegister(1, 'c2')
+    qc = QuantumCircuit(q1, q2, c2)  # Deklarasi semua register sekaligus
     
-    final_qc = QuantumCircuit(q1, q2, c2)  # Deklarasi semua register sekaligus
-    final_qc = final_qc.compose(qc1)       # Tambahkan qc1
-    final_qc = final_qc.compose(qc2)       # Tambahkan qc2
     
     # quantum state preparation
     for i_re in range(H.size): 
-        final_qc.ry(H_real[i_re], q1[i_re])
+        qc.ry(H_real[i_re], q1[i_re])
         
     for i_im in range(H.size):
-        final_qc.rz(H_imag[i_im], q1[i_im])
+        qc.rz(H_imag[i_im], q1[i_im])
         
-    final_qc.barrier()
+    qc.barrier()
     
     def create_u_gate(label,w_i):
         u = QuantumCircuit(2, name=f'U{label}')
+        # u.h(0)
         u.cx(1,0)
         u.rz(np.pi/4, 0)
         u.ry(w_i, 1)
@@ -141,123 +138,67 @@ def Q_encode(H, H_real, H_imag, w_1, w_2, w_3, V0, V1):
         return u.to_gate()
     
     u1 = create_u_gate(1, w_1).control(1)  #control(1) menambah 1 control di Ugate,
-    final_qc.append(u1, [q1[0], q2[0], q2[1]])
-    final_qc.swap(q2[0], q2[1])
+    qc.append(u1, [q1[0], q2[0], q2[1]])
+    qc.swap(q2[0], q2[1])
     
     u2 = create_u_gate(2, w_2).control(1)
-    final_qc.append(u2, [q1[1], q2[1], q2[2]])
-    final_qc.swap(q2[1], q2[2])
+    qc.append(u2, [q1[1], q2[1], q2[2]])
+    qc.swap(q2[1], q2[2])
     
     u3 = create_u_gate(3, w_3).control(1)
-    final_qc.append(u3, [q1[2], q2[2], q2[3]])
+    qc.append(u3, [q1[2], q2[2], q2[3]])
     
-    final_qc.barrier()
+    qc.barrier()
     
-    
-    # def quantum_pooling_layer(final_qc, control_qubit, target_qubits, classical_bits, V0_params, V1_params):
-    #     """
-    #     Menerapkan pooling layer ke quantum circuit.
+    def apply_controlled_V(qc, control, target, V):
+        # qc.h(control)
+        qc.crz(V[0], control, target)
+        qc.cry(V[1], control, target)
+        qc.crz(V[2], control, target)
 
-    #     Args:
-    #         - qc             : QuantumCircuit object
-    #         - control_qubit  : Qubit yang akan diukur (dan collapse)
-    #         - target_qubit   : Qubit yang menerima hasil pooling
-    #         - classical_bit  : ClassicalRegister index untuk menyimpan hasil pengukuran
-    #         - V0_params      : Tuple (rz1, ry, rz2) untuk unitary V0 jika hasil ukur 0
-    #         - V1_params      : Tuple (rz1, ry, rz2) untuk unitary V1 jika hasil ukur 1
-    #         """
-    #     final_qc.measure(control_qubit, classical_bits)
-        
-    #     with final_qc.switch(classical_bits) as case:
-    #         with case(0):  # hasil ukur 0 → V0
-    #             final_qc.rz(V0[0], target_qubits)
-    #             final_qc.ry(V0[1], target_qubits)
-    #             final_qc.rz(V0[2], target_qubits)
+    def quantum_pooling_layer(qc, control_qubit, target_qubit, V0, V1):
+        # Apply V1 if control == 1
+        qc.h(control_qubit)
+        apply_controlled_V(qc, control_qubit, target_qubit, V1)
 
-    #         with case(1):  # hasil ukur 1 → V1
-    #             final_qc.rz(V1[0], target_qubits)
-    #             final_qc.ry(V1[1], target_qubits)
-    #             final_qc.rz(V1[2], target_qubits)
+        # Apply V0 if control == 0
+        qc.x(control_qubit)
+        apply_controlled_V(qc, control_qubit, target_qubit, V0)
+        qc.x(control_qubit)  # Reset
+        
+        qc.barrier()
 
-        # final_qc.rz(V0_params[0], target_qubits).c_if((classical_bits, 0))    
-        # final_qc.ry(V0_params[1], target_qubits).if_test((classical_bits, 0))
-        # final_qc.rz(V0_params[2], target_qubits).if_test((classical_bits, 0))
-        
-        # final_qc.rz(V1_params[0], target_qubits).if_test((classical_bits, 1))
-        # final_qc.ry(V1_params[1], target_qubits).if_test((classical_bits, 1))
-        # final_qc.rz(V1_params[2], target_qubits).if_test((classical_bits, 1))
-        
-    final_qc.swap(q2[2], q2[1])
-    # quantum_pooling_layer(final_qc, q2[0], q2[1], c2[0], V0_params=V0, V1_params=V1)     
-    final_qc.measure(q2[0], c2[0])
-    final_qc.swap(q2[2], q2[1])
-    final_qc.measure(q2[1], c2[1])
-    final_qc.swap(q2[3], q2[2])
-    final_qc.measure(q2[2], c2[2])
+
+    # qc.swap(q2[2], q2[1])
+    # quantum_pooling_layer(qc, q2[0], q2[1],  V0, V1)
+    # qc.swap(q2[2], q2[1])
+    # quantum_pooling_layer(qc, q2[1], q2[2],  V0, V1)
+    # qc.swap(q2[3], q2[2])
+    # quantum_pooling_layer(qc, q2[2], q2[3],  V0, V1)
     
-    return final_qc
-w_1, w_2, w_3 = np.pi/6, np.pi/5, np.pi/4
-V0 = (np.pi/4, np.pi/3, np.pi/2)
-V1 = (np.pi/6, np.pi/4, np.pi/3)
+    qc.swap(q2[2], q2[1])
+    qc.h(q2[0])
+    # qc.barrier()
+    qc.swap(q2[2], q2[1])
+    qc.cx(q2[1], q2[0])
+    # qc.barrier()
+    qc.swap(q2[3], q2[2])
+    qc.cx(q2[2], q2[0])
+    
+
+    # qc.h(q2[0])  # Superposition untuk out1, out3, out5
+    # qc.cx(q2[1], q2[0])
+    # qc.cx(q2[2], q2[0])
+    
+    qc.barrier()
+    qc.measure(q2[0], c2[0])    
+
+    
+    return qc
+w_1, w_2, w_3 = np.pi/2, np.pi/2, np.pi/2
+V0 = (w_1, w_2, w_3)
+V1 = (w_1, w_2, w_3)
 qc2 = Q_encode(H, H_real, H_imag, w_1, w_2, w_3, V0, V1)
-
-
-# def build_qgcn(H, A, num_layers=1):
-#     num_nodes = len(A)
-#     q = QuantumRegister(num_nodes, 'q')
-#     c = ClassicalRegister(3, 'c')
-#     qc = QuantumCircuit(q,c)
-    
-#     # Normalize amplitudes
-#     h_abs = np.abs(H)
-#     h_max = np.max(h_abs)
-    
-#     # Encode channel information
-#     # for port in range(3):
-#     #     for ant in range(2):
-#     #         # Amplitude encoding (safe normalization)
-#     #         angle_amp = (h_abs[port, ant] / h_max) * np.pi
-#     #         qc.ry(angle_amp, ant)
-            
-
-#     #         # Phase encoding
-#     #         angle_phase = np.angle(H[port, ant])
-#     #         qc.rz(angle_phase, ant)
-#     #         qc.barrier()
-#     # qc.barrier()
-    
-    
-#     for port in range(3):
-#        # Gabungkan informasi kedua antenna
-#        combined_angle = np.arctan(np.sum(h_abs[port,:])/h_max * np.pi/2)
-#        qc.ry(combined_angle, port+2)  # Qubit 2-4 adalah port
-       
-#        # Encoding fase
-#        mean_phase = np.mean(np.angle(H[port,:]))
-#        qc.rz(mean_phase, port+2)
-#        qc.barrier()
-    
-#     # Parameterized layers
-#     theta = ParameterVector('θ', length=num_layers*(2*num_nodes + 1))
-    
-#     for layer in range(num_layers):
-#         # Node feature transformation
-#         for i in range(num_nodes):
-#             qc.ry(theta[layer*num_nodes + i], i)
-#             qc.rz(theta[layer*num_nodes + num_nodes + i], i)
-#         qc.barrier()
-#         # Graph convolution
-#         for i in range(num_nodes):
-#             for j in range(i+1, num_nodes):
-#                 if A[i,j] == 1:
-#                     qc.cz(i, j)
-#                     qc.cry(theta[-1], i, j)  # Shared parameter
-#                     qc.barrier()
-                    
-#     qc.measure(q[2], c[0])
-#     qc.measure(q[3], c[1])
-#     qc.measure(q[4], c[2])
-#     return qc,theta
 
 # %%
 def ave_meas(count):
@@ -267,52 +208,48 @@ def ave_meas(count):
 def Q_decode(H, H_real, H_imag, w_1, w_2, w_3, shots):
     
     qc = Q_encode(H, H_real, H_imag, w_1, w_2, w_3, V0, V1)
-    sampler = StatevectorSampler() 
+    sampler = StatevectorSampler()
     
     job = sampler.run( [(qc)], shots=shots)
     result = job.result()
     counts_sam = result[0].data.c2.get_counts()
     
     simp_counts_01 = marginal_counts(counts_sam, indices=[0])
-    simp_counts_02 = marginal_counts(counts_sam, indices=[1])
-    simp_counts_03 = marginal_counts(counts_sam, indices=[2])
+    # simp_counts_02 = marginal_counts(counts_sam, indices=[1])
+    # simp_counts_03 = marginal_counts(counts_sam, indices=[2])
        # counts_sam = result_sam[0].data.c.get_counts()
        
     out1 = ave_meas(simp_counts_01)
-    out2 = ave_meas(simp_counts_02)
-    out3 = ave_meas(simp_counts_03)
+    # out2 = ave_meas(simp_counts_02)
+    # out3 = ave_meas(simp_counts_03)
        
-    out = [out1, out2, out3]
-    return qc, out, out1, out2, out3
+    out = [out1]
+    return counts_sam, qc, out, out1
 
-w_1, w_2, w_3 = np.pi/6, np.pi/5, np.pi/4
-V0 = (np.pi/4, np.pi/3, np.pi/2)
-V1 = (np.pi/6, np.pi/4, np.pi/3)
-qc, out, out1, out2, out3 = Q_decode(H, H_real, H_imag, w_1, w_2, w_3, shots=1024)
+w_1, w_2, w_3 = np.pi, np.pi, np.pi
+V0 = (w_1, w_2, w_3)
+V1 = (w_1, w_2, w_3)
+count_sam, qc, out, out1 = Q_decode(H, H_real, H_imag, w_1, w_2, w_3, shots=1024)
 
 print("measurement_average_01 =",out[0])
-print("measurement_average_02 =",out[1])
-print("measurement_average_03 =",out[2])
+# print("measurement_average_02 =",out[1])
+# print("measurement_average_03 =",out[2])
 
-
+aaaaa = plot_histogram(count_sam, sort='value_desc')
 # %%
 #
 num_ports=3
 ptx = 5
 sigma_n = 1
     
-def loss(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6):
+def loss(H, H_real, H_imag, w_1, w_2, w_3):
     
-    qc, out, out1 = Q_decode(H, H_real, H_imag, w_1, w_2, w_3, shots=1024)
+    count_sam, qc, out, out1 = Q_decode(H, H_real, H_imag, w_1, w_2, w_3, shots=1024)
     
-    # v1 = np.exp(1j*(2*np.pi/Lambda)*(out1))     # 1st BS
-    # v2 = np.exp(1j*(2*np.pi/Lambda)*(out2))     # 2nd BS
-    # v1 = np.exp(1j*2*np.pi*(out1))     # 1st BS
-    # v2 = np.exp(1j*2*np.pi*(out2))     # 2nd BS
-    v1 = np.exp(1j*(out1+(0)))     # 1st BS
+    v1 = np.exp(1j*(out1))     # 1st BS
     V1 = v1/abs(v1)
-    V2 = v2/abs(v2)
-    Q = np.array([V1,V2])
+
+    Q = np.array([V1])
     
     
     sinr1 = np.abs(H[0,:] @ Q)**2
@@ -324,17 +261,158 @@ def loss(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6):
     sinr_p3 = sinr3 / (sinr1+sinr2+sigma_n)
     
     sinr_all = np.array([sinr_p1,sinr_p2,sinr_p3])
-    # best_port = np.argmax(sinr_all)
-    # sum_rate = np.log2(1 + sinr_all[best_port])
+    best_port = np.argmax(sinr_all)
+    sum_rate = np.log2(1 + sinr_all[best_port])
     
-    indices = np.argsort(sinr_all)[-2:]
-    best_sinr = sinr_all[indices]
+    # indices = np.argsort(sinr_all)[-2:]
+    # best_sinr = sinr_all[indices]
     
-    sum_rate1 = np.log2(1 + best_sinr[0])
-    sum_rate2 = np.log2(1 + best_sinr[1])
-    sum_rate = sum_rate1+sum_rate2        
+    # sum_rate1 = np.log2(1 + best_sinr[0])
+    # sum_rate = sum_rate     
 
     loss = -1*(sum_rate)
     return loss
 
-los = loss(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6)
+los = loss(H, H_real, H_imag, w_1, w_2, w_3)
+# %%
+
+def gradient(H, H_real, H_imag, w_1, w_2, w_3, w_index):
+        
+    shift = np.pi/2
+        
+    w = np.array([w_1, w_2, w_3])
+        
+    w_min = w
+    w_plus = w
+    
+    w_min[w_index] = w_min[w_index] - shift
+    loss_min = loss(H, H_real, H_imag, w_min[0], w_min[1], w_min[2])
+        
+    w_plus[w_index] = w_plus[w_index] + shift
+    loss_plus = loss(H, H_real, H_imag, w_plus[0], w_plus[1], w_plus[2])
+        
+    # grad = (1/2*np.sin(shift)) * (loss_min-loss_plus)
+    # grad = (1/2*np.sin(shift)) * (loss_plus-loss_min)
+    grad = (loss_plus - loss_min) / 2
+        
+    return grad, loss_min, loss_plus
+
+w_1 = np.pi
+w_2 = np.pi
+w_3 = np.pi
+
+grad_1, loss_min, loss_plus = gradient(H, H_real, H_imag, w_1, w_2, w_3, 1)  
+
+# %%
+
+N_port = 3
+N_BS = 1
+WL = 0.5
+
+def ch_simp(N_port, N_BS, WL):
+    # H_sample_real = []
+    # H_sample_imag = []
+
+    for i_BS in range(N_BS):
+        x = np.sqrt(1/2)*np.random.randn(N_port,N_BS)
+        y = np.sqrt(1/2)*np.random.randn(N_port,N_BS)
+        h_ch = np.zeros((N_port,N_BS), dtype=complex)
+        mu = np.zeros(N_port)
+        h_ch[0,:] = x[0,:] + 1j*y[0,:]     #reference port
+        mu[0] = 1                       #reference port (mu is spatial correlation between port using bessel func)
+        for i_port in range(1,N_port):
+            mu[i_port] = jv(0, 2*np.pi * (abs((i_port+1)-1)/(N_port-1)) * WL)
+            h_ch[i_port,:] = (np.sqrt(1-mu[i_port]**2) * x[i_port,:] + mu[i_port] * x[0,:] + 
+                              1j*(np.sqrt(1-mu[i_port]**2) * y[i_port,:] + mu[i_port] * y[0,:]))          
+            
+            #inputs = np.round(h_ch[:,i_sample], 5)
+        H_real = np.round(np.real(h_ch),5)
+        H_imag = np.round(np.imag(h_ch),5)
+    return h_ch, H_real, H_imag
+
+ch_gen, H_real, H_imag = ch_simp(N_port, N_BS, WL)
+h_ch = np.reshape(ch_gen,(-1,1))
+H_real = H_real.flatten()
+H_imag = H_imag.flatten()
+# %%
+#
+WL = 0.5
+N_eps = 50
+N_data = 1
+learn_step = 0.1
+w_1 = np.pi
+w_2 = np.pi
+w_3 = np.pi
+
+w = np.array([w_1, w_2, w_3])
+
+learn_step_init = learn_step
+
+#Generate dataset channel
+H_sample_real = []
+H_sample_imag = []
+h_ch = []
+
+for i_channel in range(N_data):
+    # ch_gen = channel_gen(k_nd_BS, d_BS, k_rmd_U, d_U)
+    ch_gen, H_real_s, H_imag_s = ch_simp(N_port, N_BS, WL) 
+
+
+    inputs_og = np.reshape(ch_gen,(-1,1))
+    H_real = H_real_s.flatten()
+    H_imag = H_imag_s.flatten()    
+    
+    h_ch.append(ch_gen)
+    H_sample_real.append(H_real)
+    H_sample_imag.append(H_imag)
+    
+
+loss_mean_array =[]
+loss_min_array = []
+loss_max_array = [] 
+for i_eps in range(N_eps):
+    loss_array =[]
+    for i_data in range(N_data):
+        
+        for i_weight in range(len(w)):
+            
+            grad, loss_min, loss_plus = gradient(h_ch[i_data], H_sample_real[i_data], H_sample_imag[i_data], w[0], w[1], w[2], i_weight)
+            
+            learn_step = learn_step_init / np.sqrt(i_eps+1)
+            # learn_step = 0.5 * learn_step_init * (1+np.cos((np.pi*(i_eps+1))/N_eps))
+            # learn_step = learn_step_init
+            
+            w[i_weight] = w[i_weight] - ((learn_step)*grad)
+            # w = np.array(w[i_weight])
+        
+        loss_cal = loss(h_ch[i_data], H_sample_real[i_data], H_sample_imag[i_data], w[0], w[1], w[2])
+        
+        loss_array.append(loss_cal)
+    
+    # w = w
+    loss_mean_array.append(np.mean(loss_array))
+    loss_min_array.append(np.min(loss_array))
+    loss_max_array.append(np.max(loss_array))
+    
+    print("i_episode =",i_eps)
+    print('optimized weight : ', np.array([w])) 
+    print('gradient: ', grad)
+    
+
+print('Result - weight final: ', np.array([w]))  
+
+
+
+plt.plot(loss_mean_array, label="QNN $N_{data}$ ="+ str(N_data))
+# plt.fill_between(np.arange(N_eps), loss_max_array, loss_min_array, color='grey', alpha=0.5)
+
+# naming the x axis 
+plt.xlabel('Training episode') 
+# naming the y axis 
+plt.ylabel('Training loss') 
+
+
+plt.grid(True)
+plt.rc('grid', linestyle="dotted", color='grey')
+plt.legend(loc='best')
+plt.show()
