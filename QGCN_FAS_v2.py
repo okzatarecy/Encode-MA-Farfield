@@ -86,8 +86,8 @@ def Q_encode(H, H_real, H_imag, params_U):
     qc.append(u2, [q1[1], q2[1], q2[2]])
     qc.swap(q2[1], q2[2])
     
-    u2 = create_u_gate(3, params_U[2,0], params_U[2,1], params_U[2,2], params_U[2,3]).control(1)
-    qc.append(u2, [q1[2], q2[2], q2[3]])
+    u3= create_u_gate(3, params_U[2,0], params_U[2,1], params_U[2,2], params_U[2,3]).control(1)
+    qc.append(u3, [q1[2], q2[2], q2[3]])
     qc.swap(q2[2], q2[3])
 
     qc.barrier()
@@ -106,15 +106,15 @@ def Q_encode(H, H_real, H_imag, params_U):
         return gateP
     
     qc.swap(q2[2], q2[1])
-    v1 = quantum_pooling_layer(1, 0, 0, 0, 0)
+    v1 = quantum_pooling_layer(1, -0.5,-0.5,-0.5,-0.5)
     qc.append(v1, [q2[0], q2[1]])
                    
     qc.swap(q2[2], q2[1])
-    v2 = quantum_pooling_layer(2, 0, 0, 0, 0)
+    v2 = quantum_pooling_layer(2,-1,-1,-1,-1)
     qc.append(v2, [q2[1], q2[2]])
                    
     qc.swap(q2[3], q2[2])
-    v3 = quantum_pooling_layer(3, 0, 0, 0, 0)
+    v3 = quantum_pooling_layer(3, -0.5,-0.5,-0.5,-0.5)
     qc.append(v3, [q2[2], q2[3]])
     
     qc.barrier()
@@ -165,7 +165,7 @@ print("measurement_average_01 =",out[0])
 # print("measurement_average_02 =",out[1])
 # print("measurement_average_03 =",out[2])
 
-aaaaa = plot_histogram(count_sam, sort='value_desc')
+# aaaaa = plot_histogram(count_sam, sort='value_desc')
 # %%
 #
 num_ports=3
@@ -232,26 +232,25 @@ def update_matrix_plus(matrix_plus, single_index, shift):
         return matrix_plus
 
 def gradient(H, H_real, H_imag, params_U, w_index):  
-    shift = 1
-    update_params_min = update_matrix_min(params_U, w_index, shift)
-    # update_params_plus = update_matrix_plus(params_U, w_index, shift)
-        
-    # loss_min = loss(H, H_real, H_imag, update_params_min)
+    shift = np.pi/2
     
-    # loss_plus = loss(H, H_real, H_imag, update_params_plus)
+    params_U_copy_min = params_U.copy()
+    params_U_copy_plus = params_U.copy()
+    
+    update_params_min = update_matrix_min(params_U_copy_min, w_index, shift)
+    update_params_plus = update_matrix_plus(params_U_copy_plus, w_index, shift)
         
-    # # grad = (1/2*np.sin(shift)) * (loss_min-loss_plus)
-    # # grad = (1/2*np.sin(shift)) * (loss_plus-loss_min)
+    loss_min = loss(H, H_real, H_imag, update_params_min)
+    
+    loss_plus = loss(H, H_real, H_imag, update_params_plus)
+        
+    # grad = (1/2*np.sin(shift)) * (loss_min-loss_plus)
+    grad = (1/2*np.sin(shift)) * (loss_plus-loss_min)
     # grad = (loss_plus - loss_min) / 2
         
-    # return grad, loss_min, loss_plus
-    return update_params_min
+    return grad, loss_min, loss_plus
 
-w_1 = np.pi
-w_2 = np.pi
-w_3 = np.pi
-
-loss_plus = gradient(H, H_real, H_imag, params_U, 3)  
+grad, loss_min, loss_plus = gradient(H, H_real, H_imag, params_U, 3)  
 
 # %%
 
@@ -288,11 +287,15 @@ H_imag = H_imag.flatten()
 #
 WL = 0.5
 N_eps = 50
-N_data = 1
+N_data = 10
 learn_step = 0.1
-w_1 = np.pi
-w_2 = np.pi
-w_3 = np.pi
+
+w_u1t1, w_u1p1, w_u1t2, w_u1p2 = np.pi, np.pi, np.pi, np.pi 
+w_u2t1, w_u2p1, w_u2t2, w_u2p2 = np.pi, np.pi, np.pi, np.pi
+w_u3t1, w_u3p1, w_u3t2, w_u3p2 = np.pi/2, np.pi/2, np.pi/2, np.pi/2
+params_U = np.array([[w_u1t1, w_u1p1, w_u1t2, w_u1p2],
+                     [w_u2t1, w_u2p1, w_u2t2, w_u2p2],
+                     [w_u3t1, w_u3p1, w_u3t2, w_u3p2]])
 
 w = np.array([w_1, w_2, w_3])
 
@@ -324,18 +327,21 @@ for i_eps in range(N_eps):
     loss_array =[]
     for i_data in range(N_data):
         
-        for i_weight in range(len(w)):
+        for i_weight in range(params_U.size):
             
-            grad, loss_min, loss_plus = gradient(h_ch[i_data], H_sample_real[i_data], H_sample_imag[i_data], w[0], w[1], w[2], i_weight)
+            row = i_weight // params_U.shape[1] 
+            col = i_weight % params_U.shape[1]
             
+            grad, loss_min, loss_plus = gradient(h_ch[i_data], H_sample_real[i_data], H_sample_imag[i_data], params_U, i_weight)
+            # grad =0.5
             learn_step = learn_step_init / np.sqrt(i_eps+1)
             # learn_step = 0.5 * learn_step_init * (1+np.cos((np.pi*(i_eps+1))/N_eps))
             # learn_step = learn_step_init
             
-            w[i_weight] = w[i_weight] - ((learn_step)*grad)
+            params_U[row, col] = params_U[row, col] - ((learn_step)*grad)
             # w = np.array(w[i_weight])
         
-        loss_cal = loss(h_ch[i_data], H_sample_real[i_data], H_sample_imag[i_data], w[0], w[1], w[2])
+        loss_cal = loss(h_ch[i_data], H_sample_real[i_data], H_sample_imag[i_data], params_U)
         
         loss_array.append(loss_cal)
     

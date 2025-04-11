@@ -425,8 +425,8 @@ def gradient(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, w_index
         
     w = np.array([w_1, w_2, w_3, w_4, w_5, w_6])
         
-    w_min = w
-    w_plus = w
+    w_min = w.copy()
+    w_plus = w.copy()
     
     w_min[w_index] = w_min[w_index] - shift
     loss_min = loss(N_BS, ch_gen, H_real, H_imag, w_min[0], w_min[1], w_min[2], w_min[3], w_min[4], w_min[5])
@@ -452,9 +452,9 @@ grad_1, loss_min, loss_plus = gradient(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w
 # %%
 
 WL = 0.5
-N_eps = 300
-N_data = 10
-learn_step = 0.1
+N_eps = 100
+N_data = 40
+learn_step = 1
 w_1 = np.pi
 w_2 = np.pi
 w_3 = np.pi
@@ -536,5 +536,10 @@ plt.grid(True)
 plt.rc('grid', linestyle="dotted", color='grey')
 plt.legend(loc='best')
 plt.show()
-    
-   
+
+# %%
+#
+# Result - weight final Ndata=1 learnsteinit (3): [[1.52021903 4.64165236 2.97436532 2.9345749  3.82982091 2.70906777]]
+# Result - weight final Ndata=10 learnsteinit (2): [[1.54010869 4.84064471 3.12875271 3.30091615 3.12799423 3.1104534 ]]
+# Result - weight final  Ndata=20 learnsteinit (2):  [[1.6614066  4.70851437 2.96296494 3.09708533 3.16486484 3.25067301]]
+# Result - weight final Ndata=40 learnsteinit (1): [[1.59559124 4.63071261 3.24797102 3.09708461 3.05688972 3.07325515]]  
