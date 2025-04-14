@@ -100,21 +100,20 @@ def Q_encode(H, H_real, H_imag, params_U):
         gateP.rz(phi1, 0)
         gateP.ry(theta2, 1)
         gateP.rz(phi2, 1)
-        gateP.cx(0, 1)
         gateP.ry(-(theta2), 1)
         gateP.rz(-(phi2), 1)
         return gateP
     
     qc.swap(q2[2], q2[1])
-    v1 = quantum_pooling_layer(1, -0.5,-0.5,-0.5,-0.5)
+    v1 = quantum_pooling_layer(1, 0.5, 0.5, 0.5, 0.5)
     qc.append(v1, [q2[0], q2[1]])
                    
     qc.swap(q2[2], q2[1])
-    v2 = quantum_pooling_layer(2,-1,-1,-1,-1)
+    v2 = quantum_pooling_layer(2, np.pi/3, np.pi/3, np.pi/3, np.pi/3)
     qc.append(v2, [q2[1], q2[2]])
                    
     qc.swap(q2[3], q2[2])
-    v3 = quantum_pooling_layer(3, -0.5,-0.5,-0.5,-0.5)
+    v3 = quantum_pooling_layer(3, np.pi/2, np.pi/2, np.pi/2 ,np.pi/2)
     qc.append(v3, [q2[2], q2[3]])
     
     qc.barrier()
@@ -127,7 +126,8 @@ w_u2t1, w_u2p1, w_u2t2, w_u2p2 = np.pi, np.pi, np.pi, np.pi
 w_u3t1, w_u3p1, w_u3t2, w_u3p2 = np.pi/2, np.pi/2, np.pi/2, np.pi/2
 params_U = np.array([[w_u1t1, w_u1p1, w_u1t2, w_u1p2],
                      [w_u2t1, w_u2p1, w_u2t2, w_u2p2],
-                     [w_u3t1, w_u3p1, w_u3t2, w_u3p2]])
+                     [w_u3t1, w_u3p1, w_u3t2, w_u3p2]
+                     ])
 qc2 = Q_encode(H, H_real, H_imag, params_U)
 
 # %%
@@ -156,16 +156,11 @@ def Q_decode(H, H_real, H_imag, params_U, shots):
     out = [out1]
     return counts_sam, qc, out, out1
 
-w_1, w_2, w_3 = np.pi, np.pi, np.pi
-V0 = (w_1, w_2, w_3)
-V1 = (w_1, w_2, w_3)
 count_sam, qc, out, out1 = Q_decode(H, H_real, H_imag, params_U, shots=1024)
 
 print("measurement_average_01 =",out[0])
 # print("measurement_average_02 =",out[1])
 # print("measurement_average_03 =",out[2])
-
-# aaaaa = plot_histogram(count_sam, sort='value_desc')
 # %%
 #
 num_ports=3
@@ -181,7 +176,6 @@ def loss(H, H_real, H_imag, params_U):
 
     Q = np.array([V1])
     
-    
     sinr1 = np.abs(H[0,:] @ Q)**2
     sinr2 = np.abs(H[1,:] @ Q)**2
     sinr3 = np.abs(H[2,:] @ Q)**2
@@ -190,17 +184,17 @@ def loss(H, H_real, H_imag, params_U):
     sinr_p2 = sinr2 / (sinr1+sinr3+sigma_n)
     sinr_p3 = sinr3 / (sinr1+sinr2+sigma_n)
     
-    sinr_all = np.array([sinr_p1,sinr_p2,sinr_p3])
-    best_port = np.argmax(sinr_all)
-    sum_rate = np.log2(1 + sinr_all[best_port])
+    sinr_all = np.array([sinr_p1, sinr_p2, sinr_p3])
+    # best_port = np.argmax(sinr_all)
+    # sum_rate = np.log2(1 + sinr_all[best_port])
     
-    # indices = np.argsort(sinr_all)[-2:]
-    # best_sinr = sinr_all[indices]
+    indices = np.argsort(sinr_all)[-2:]
+    best_sinr = sinr_all[indices]
     
-    # sum_rate1 = np.log2(1 + best_sinr[0])
-    # sum_rate = sum_rate     
+    sum_rate1 = np.log2(1 + np.sum(best_sinr))
+    sum_rate = sum_rate1     
 
-    loss = -1*(sum_rate)
+    loss = -1*(sum_rate1)
     return loss
 
 los = loss(H, H_real, H_imag, params_U)
@@ -211,7 +205,7 @@ def update_matrix_min(matrix_min, single_index, shift):
     if 0 <= single_index < m * n:
         i = single_index // n  # Baris
         j = single_index % n   # Kolom
-        value = matrix_min[i,j]- shift
+        value = matrix_min[i,j] - shift
         matrix_min[i,j] = value
         return matrix_min
     else:
@@ -244,13 +238,13 @@ def gradient(H, H_real, H_imag, params_U, w_index):
     
     loss_plus = loss(H, H_real, H_imag, update_params_plus)
         
-    # grad = (1/2*np.sin(shift)) * (loss_min-loss_plus)
+    grad = (1/2*np.sin(shift)) * (loss_min-loss_plus)
     grad = (1/2*np.sin(shift)) * (loss_plus-loss_min)
     # grad = (loss_plus - loss_min) / 2
         
     return grad, loss_min, loss_plus
 
-grad, loss_min, loss_plus = gradient(H, H_real, H_imag, params_U, 3)  
+grad, loss_min, loss_plus = gradient(H, H_real, H_imag, params_U, 0)  
 
 # %%
 
@@ -287,17 +281,15 @@ H_imag = H_imag.flatten()
 #
 WL = 0.5
 N_eps = 50
-N_data = 10
-learn_step = 0.1
+N_data = 1
+learn_step = 2
 
 w_u1t1, w_u1p1, w_u1t2, w_u1p2 = np.pi, np.pi, np.pi, np.pi 
 w_u2t1, w_u2p1, w_u2t2, w_u2p2 = np.pi, np.pi, np.pi, np.pi
-w_u3t1, w_u3p1, w_u3t2, w_u3p2 = np.pi/2, np.pi/2, np.pi/2, np.pi/2
+w_u3t1, w_u3p1, w_u3t2, w_u3p2 = np.pi, np.pi, np.pi, np.pi
 params_U = np.array([[w_u1t1, w_u1p1, w_u1t2, w_u1p2],
                      [w_u2t1, w_u2p1, w_u2t2, w_u2p2],
                      [w_u3t1, w_u3p1, w_u3t2, w_u3p2]])
-
-w = np.array([w_1, w_2, w_3])
 
 learn_step_init = learn_step
 
@@ -309,7 +301,6 @@ h_ch = []
 for i_channel in range(N_data):
     # ch_gen = channel_gen(k_nd_BS, d_BS, k_rmd_U, d_U)
     ch_gen, H_real_s, H_imag_s = ch_simp(N_port, N_BS, WL) 
-
 
     inputs_og = np.reshape(ch_gen,(-1,1))
     H_real = H_real_s.flatten()
@@ -351,11 +342,11 @@ for i_eps in range(N_eps):
     loss_max_array.append(np.max(loss_array))
     
     print("i_episode =",i_eps)
-    print('optimized weight : ', np.array([w])) 
+    print('optimized weight : ', np.array([params_U])) 
     print('gradient: ', grad)
     
 
-print('Result - weight final: ', np.array([w]))  
+print('Result - weight final: ', np.array([params_U]))  
 
 
 
