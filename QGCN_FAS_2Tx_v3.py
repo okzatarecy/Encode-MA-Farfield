@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Thu Apr 10 11:49:08 2025
+Created on Thu Apr 17 18:04:50 2025
 
 @author: orecy
 """
@@ -55,57 +55,59 @@ H_imag = H_imag.flatten()
 
 def Q_encode(H, H_real, H_imag, params_U):
     
-    q1 = QuantumRegister(H.size, 'q1')
-    q2 = QuantumRegister(6, 'q2')
+    q1 = QuantumRegister(2, 'q1')
+    q2 = QuantumRegister(7, 'q2')
     c2 = ClassicalRegister(2, 'c2')
     qc = QuantumCircuit(q1, q2, c2)  # Deklarasi semua register sekaligus
     
-    edges = [e for e in range(H_real.size)]
+    edges = [e for e in range(2)]
     qc.x(edges)
     
     # quantum state preparation
-    for i_re in range(H.size): 
+    for i_re in range(6): 
         qc.ry(H_real[i_re], q2[i_re])
         
-    for i_im in range(H.size):
+    for i_im in range(6):
         qc.rz(H_imag[i_im], q2[i_im])
         
     qc.barrier()
     
-    def create_u_gate(label, theta1, phi1):
-        gateU = QuantumCircuit(1, name=f'U{label}')   
+    def create_u_gate(label, theta1):
+        gateU = QuantumCircuit(2, name=f'U{label}')  
+        gateU.h(0)
+        gateU.cz(0, 1)
         gateU.ry(theta1 , 0)
-        gateU.rz(phi1,0)
+        gateU.cz(0, 1)
         return gateU.to_gate()
     
     
-    u1 = create_u_gate(1, params_U[0,0], params_U[0,1]).control(1)
-    qc.append(u1, [q1[0], q2[0]])
+    u1 = create_u_gate(1, params_U[0,0]).control(1)
+    qc.append(u1, [q1[0], q2[0], q2[1]])
     qc.cz(q2[0], q2[1])
     qc.barrier()
     
-    u2 = create_u_gate(2, params_U[1,0], params_U[1,1]).control(1)
-    qc.append(u2, [q1[1], q2[1]])
+    u2 = create_u_gate(2, params_U[1,0]).control(1)
+    qc.append(u2, [q1[0], q2[1], q2[2]])
     qc.cz(q2[1], q2[2])
     qc.barrier()
     
-    u3= create_u_gate(3, params_U[2,0], params_U[2,1]).control(1)
-    qc.append(u3, [q1[2], q2[2]])
+    u3= create_u_gate(3, params_U[2,0]).control(1)
+    qc.append(u3, [q1[0], q2[2], q2[3]])
     qc.cz(q2[2], q2[3])
     qc.barrier()
     
-    u4= create_u_gate(4, params_U[3,0], params_U[3,1]).control(1)
-    qc.append(u4, [q1[3], q2[3]])
+    u4= create_u_gate(4, params_U[3,0]).control(1)
+    qc.append(u4, [q1[1], q2[3], q2[4]])
     qc.cz(q2[0], q2[4])
     qc.barrier()
     
-    u5= create_u_gate(5,params_U[4,0], params_U[4,1]).control(1)
-    qc.append(u5, [q1[4], q2[4]])
+    u5= create_u_gate(5,params_U[4,0]).control(1)
+    qc.append(u5, [q1[1], q2[4], q2[5]])
     qc.cz(q2[1], q2[5])
     qc.barrier()
     
-    u6= create_u_gate(6,params_U[5,0], params_U[5,1]).control(1)
-    qc.append(u6, [q1[5], q2[5]])
+    u6= create_u_gate(6,params_U[5,0]).control(1)
+    qc.append(u6, [q1[1], q2[5], q2[6]])
     qc.cz(q2[5], q2[2])
     # qc.swap(q2[4], q2[5])
     
@@ -114,18 +116,18 @@ def Q_encode(H, H_real, H_imag, params_U):
     qc.measure(q2[1], c2[1])
     
     return qc
-w_1, w_2 = np.pi, np.pi
-w_3, w_4 = np.pi, np.pi
-w_5, w_6 = np.pi/2, np.pi/2
-w_7, w_8 = np.pi, np.pi
-w_9, w_10 = np.pi/2, np.pi/2
-w_11, w_12 = np.pi, np.pi
-params_U = np.array([[w_1, w_2],
-                     [w_3, w_4],
-                     [w_5, w_6],
-                     [w_7, w_8],
-                     [w_9, w_10],
-                     [w_11, w_12]
+w_1 = np.pi
+w_2 = np.pi
+w_3 = np.pi
+w_4 = np.pi
+w_5 = np.pi
+w_6 = np.pi
+params_U = np.array([[w_1],
+                     [w_2],
+                     [w_3],
+                     [w_4],
+                     [w_5],
+                     [w_6]
                      ])
 qc2 = Q_encode(h_ch, H_real, H_imag, params_U)
 
