@@ -74,41 +74,41 @@ def Q_encode(H, H_real, H_imag, params_U):
     
     def create_u_gate(label, theta1):
         gateU = QuantumCircuit(2, name=f'U{label}')  
-        gateU.h(0)
-        gateU.cz(0, 1)
-        gateU.ry(theta1 , 0)
-        gateU.cz(0, 1)
+        # gateU.h(0)
+        # gateU.cz(0, 1)
+        gateU.ry(theta1 , 1)
+        gateU.cz(0,1)
         return gateU.to_gate()
     
     
     u1 = create_u_gate(1, params_U[0,0]).control(1)
     qc.append(u1, [q1[0], q2[0], q2[1]])
-    qc.cz(q2[0], q2[1])
+    # qc.cz(q2[0], q2[1])
     qc.barrier()
     
     u2 = create_u_gate(2, params_U[1,0]).control(1)
     qc.append(u2, [q1[0], q2[1], q2[2]])
-    qc.cz(q2[1], q2[2])
+    # qc.cz(q2[1], q2[2])
     qc.barrier()
     
     u3= create_u_gate(3, params_U[2,0]).control(1)
     qc.append(u3, [q1[0], q2[2], q2[3]])
-    qc.cz(q2[2], q2[3])
+    # qc.cz(q2[2], q2[3])
     qc.barrier()
     
     u4= create_u_gate(4, params_U[3,0]).control(1)
     qc.append(u4, [q1[1], q2[3], q2[4]])
-    qc.cz(q2[0], q2[4])
+    # qc.cz(q2[3], q2[4])
     qc.barrier()
     
     u5= create_u_gate(5,params_U[4,0]).control(1)
     qc.append(u5, [q1[1], q2[4], q2[5]])
-    qc.cz(q2[1], q2[5])
+    # qc.cz(q2[4], q2[5])
     qc.barrier()
     
     u6= create_u_gate(6,params_U[5,0]).control(1)
     qc.append(u6, [q1[1], q2[5], q2[6]])
-    qc.cz(q2[5], q2[2])
+    # qc.cz(q2[5], q2[6])
     # qc.swap(q2[4], q2[5])
     
     qc.barrier()
@@ -129,7 +129,7 @@ params_U = np.array([[w_1],
                      [w_5],
                      [w_6]
                      ])
-qc2 = Q_encode(h_ch, H_real, H_imag, params_U)
+qc2 = Q_encode(ch_gen, H_real, H_imag, params_U)
 
 # %%
 def ave_meas(count):
@@ -155,7 +155,7 @@ def Q_decode(h_ch, H_real, H_imag, params_U, shots):
 
     return counts_sam, qc, out, out1, out2
 
-count_sam, qc, out, out1, out2 = Q_decode(h_ch, H_real, H_imag, params_U, shots=1024)
+count_sam, qc, out, out1, out2 = Q_decode(ch_gen, H_real, H_imag, params_U, shots=1024)
 
 print("measurement_average_01 =",out[0])
 print("measurement_average_02 =",out[1])
@@ -166,9 +166,9 @@ num_ports=3
 ptx = 5
 sigma_n = 1
     
-def loss(h_ch, H_real, H_imag, params_U):
+def loss(ch_gen, H_real, H_imag, params_U):
     
-    count_sam, qc, out, out1, out2 = Q_decode(h_ch, H_real, H_imag, params_U, shots=1024)
+    count_sam, qc, out, out1, out2 = Q_decode(ch_gen, H_real, H_imag, params_U, shots=1024)
     
     v1 = np.exp(1j*(out1))     # 1st BS
     v2 = np.exp(1j*(out2))     # 2nd BS
@@ -177,9 +177,9 @@ def loss(h_ch, H_real, H_imag, params_U):
     Q = np.array([V1,V2])
     
     
-    sinr1 = np.sum(np.abs(h_ch[0,:] * Q)**2)
-    sinr2 = np.sum(np.abs(h_ch[1,:] * Q)**2)
-    sinr3 = np.sum(np.abs(h_ch[2,:] * Q)**2)
+    sinr1 = np.abs(ch_gen[0,:] @ Q)**2
+    sinr2 = np.abs(ch_gen[1,:] @ Q)**2
+    sinr3 = np.abs(ch_gen[2,:] @ Q)**2
     
     sinr_p1 = sinr1 / (sinr2+sinr3+sigma_n)
     sinr_p2 = sinr2 / (sinr1+sinr3+sigma_n)
@@ -199,7 +199,7 @@ def loss(h_ch, H_real, H_imag, params_U):
     loss = -1*(sum_rate)
     return loss
 
-los = loss(h_ch, H_real, H_imag, params_U)
+los = loss(ch_gen, H_real, H_imag, params_U)
 # %%
 def update_matrix_min(matrix_min, single_index, shift):
     m = len(matrix_min)     # Jumlah baris
@@ -246,148 +246,28 @@ def gradient(H, H_real, H_imag, params_U, w_index):
         
     return grad, loss_min, loss_plus
 
-grad, loss_min, loss_plus = gradient(h_ch, H_real, H_imag, params_U, 0)  
-# %%
-# def rotoselect(H , H_real, H_imag, params_U, loss_func, num_iterations, delta):
-#     """
-#     Melakukan optimasi Rotoselect untuk parameter.
-
-#     Args:
-#         params_U: Parameter yang akan dioptimasi.
-#         loss_func: Fungsi loss yang digunakan.
-#         num_iterations: Jumlah iterasi Rotoselect.
-#         delta: Faktor skala untuk perubahan parameter.
-
-
-#     Returns:
-#         Parameter yang dioptimasi.
-#     """
-
-#     for it in range(num_iterations):
-#         for i in range(params_U.size):
-#             row = i // params_U.shape[1]
-#             col = i % params_U.shape[1]
-            
-#             # learn_step = learn_step_init / np.sqrt(i_eps+1)
-#             # Hitung loss saat ini
-#             current_loss = loss_func(params_U)
-            
-#             # delta = delta_init / np.sqrt(it+1)
-#             # Ubah parameter sedikit
-#             params_U[row, col] += delta
-#             plus_loss = loss_func(params_U)
-
-#             params_U[row, col] -= 2 * delta
-#             minus_loss = loss_func(params_U)
-
-#             # Kembalikan parameter ke nilai terbaik
-#             if plus_loss < current_loss and plus_loss < minus_loss:
-#                 params_U[row, col] += delta
-#             elif minus_loss < current_loss and minus_loss < plus_loss:
-#                 pass  # Parameter sudah di posisi terbaik
-#             else:
-#                 params_U[row, col] += delta  # Kembali ke nilai awal
-
-#     return params_U
-# params = rotoselect(h_ch, H_real, H_imag, params_U, loss, num_iterations=10, delta=0.1)
-
- # %%
-# WL = 0.5
-# N_eps = 5
-# N_data = 1
-# learn_step = 2
-
-# w_u1t1, w_u1p1, w_u1t2, w_u1p2 = np.pi, np.pi, np.pi, np.pi 
-# w_u2t1, w_u2p1, w_u2t2, w_u2p2 = np.pi, np.pi, np.pi, np.pi
-# w_u3t1, w_u3p1, w_u3t2, w_u3p2 = np.pi/2, np.pi/2, np.pi/2, np.pi/2
-# params_U = np.array([[w_u1t1, w_u1p1, w_u1t2, w_u1p2],
-#                      [w_u2t1, w_u2p1, w_u2t2, w_u2p2],
-#                      [w_u3t1, w_u3p1, w_u3t2, w_u3p2]
-#                      ])
-
-# learn_step_init = learn_step
-
-# #Generate dataset channel
-# H_sample_real = []
-# H_sample_imag = []
-# h_ch = []
-
-# for i_channel in range(N_data):
-#     # ch_gen = channel_gen(k_nd_BS, d_BS, k_rmd_U, d_U)
-#     ch_gen, H_real_s, H_imag_s = ch_simp(N_port, N_BS, WL) 
-
-#     inputs_og = np.reshape(ch_gen,(-1,1))
-#     H_real = H_real_s.flatten()
-#     H_imag = H_imag_s.flatten()    
-    
-#     h_ch.append(ch_gen)
-#     H_sample_real.append(H_real)
-#     H_sample_imag.append(H_imag)
-    
-
-# loss_mean_array =[]
-# loss_min_array = []
-# loss_max_array = [] 
-# for i_eps in range(N_eps):
-#     loss_array =[]
-#     for i_data in range(N_data):
-        
-#         params_U = rotoselect(H, H_real, H_imag, params_U, loss, num_iterations=10, delta=2)
-       
-#         loss_cal = loss(h_ch[i_data], H_sample_real[i_data], H_sample_imag[i_data], params_U)
-
-#         loss_array.append(loss_cal)
-    
-#     # w = w
-#     loss_mean_array.append(np.mean(loss_array))
-#     loss_min_array.append(np.min(loss_array))
-#     loss_max_array.append(np.max(loss_array))
-    
-#     print("i_episode =",i_eps)
-#     print('optimized weight : ', np.array([params_U])) 
-#     # print('gradient: ', grad)
-    
-
-# print('Result - weight final: ', np.array([params_U]))  
-
-
-
-# plt.plot(loss_mean_array, label="QNN $N_{data}$ ="+ str(N_data))
-# # plt.fill_between(np.arange(N_eps), loss_max_array, loss_min_array, color='grey', alpha=0.5)
-
-# # naming the x axis 
-# plt.xlabel('Training episode') 
-# # naming the y axis 
-# plt.ylabel('Training loss') 
-
-
-# plt.grid(True)
-# plt.rc('grid', linestyle="dotted", color='grey')
-# plt.legend(loc='best')
-# plt.show()
-
-
+grad, loss_min, loss_plus = gradient(ch_gen, H_real, H_imag, params_U, 0)  
 
 # %%
 
 
 WL = 0.5
-N_eps = 10
-N_data = 1
-learn_step = 1
+N_eps = 50
+N_data = 2
+learn_step = 4
 
-w_1, w_2 = np.pi, np.pi
-w_3, w_4 = np.pi, np.pi
-w_5, w_6 = np.pi/2, np.pi/2
-w_7, w_8 = np.pi, np.pi
-w_9, w_10 = np.pi/2, np.pi/2
-w_11, w_12 = np.pi, np.pi
-params_U = np.array([[w_1, w_2],
-                     [w_3, w_4],
-                     [w_5, w_6],
-                     [w_7, w_8],
-                     [w_9, w_10],
-                     [w_11, w_12]
+w_1 = np.pi
+w_2 = np.pi
+w_3 = np.pi
+w_4 = np.pi
+w_5 = np.pi
+w_6 = np.pi
+params_U = np.array([[w_1],
+                     [w_2],
+                     [w_3],
+                     [w_4],
+                     [w_5],
+                     [w_6]
                      ])
 
 learn_step_init = learn_step
@@ -462,3 +342,7 @@ plt.grid(True)
 plt.rc('grid', linestyle="dotted", color='grey')
 plt.legend(loc='best')
 plt.show()
+
+# %%
+# Result - weight final Ndata= 1 learnsteinit (2): [2.19310073 3.1319701 3.15285329 3.14134119 3.14390679 3.14251712]
+
