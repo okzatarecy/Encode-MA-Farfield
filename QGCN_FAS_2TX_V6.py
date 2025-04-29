@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Tue Apr 22 12:28:47 2025
+Created on Sat Apr 26 14:58:22 2025
 
 @author: okzatarecy
 """
+
 
 import numpy as np
 from qiskit import QuantumCircuit
@@ -38,12 +39,12 @@ k_nd_BS = (2 * (np.arange(1, N+1) - 1) - N + 1)/2 * d_BS; # The coordinate of an
 k_rmd_U = (2 * (r_m - 1) - M + 1)/2 * d_U; # Coordinate of activated port r_m
 L_t = 2; # Number of transmit paths
 L_r = 2; # Number of receive paths
-bandwidth = 2e6 #channel bandwidth
+bandwidth = 1.5e6 #channel bandwidth
 
  # %%
 def channel_gen(k_nd_BS, d_BS, k_rmd_U, d_U):
-    angle1 = 90
-    angle2 = 90
+    angle1 = 80
+    angle2 = 100
     scatters_coordinate_t = np.array([[1.7, 1.5], [0.3,-1.2]]); # scatters coordinate form the origin O_t (x, y)
     l_t = np.sqrt(scatters_coordinate_t[:, 0]**2 + scatters_coordinate_t[:,1]**2 \
                   - (2 * scatters_coordinate_t[:,0] * scatters_coordinate_t[:,1] \
@@ -125,7 +126,8 @@ def Q_encode(H, H_real, H_imag, params_U):
     c2 = ClassicalRegister(2, 'c2')
     qc = QuantumCircuit(q1, q2, c2)  # Deklarasi semua register sekaligus
     
-    
+    # hada = [h for h in range(6)]
+    # qc.h(hada)
     # quantum state preparation
     for i_re in range(6): 
         qc.ry(H_real[i_re], q1[i_re])
@@ -135,15 +137,23 @@ def Q_encode(H, H_real, H_imag, params_U):
     
     edges = [e for e in range(6)]
     qc.x(edges)
+    
+    
+    for i_re in range(5): 
+        qc.ry(0.5, q2[i_re])
+        
+    for i_im in range(5):
+        qc.rz(0.5, q2[i_im])
+        
     qc.barrier()
     
     def create_u_gate(label, theta1):
         gateU = QuantumCircuit(2, name=f'U{label}')  
-        gateU.h(0)
+        # gateU.h(0)
         gateU.cz(0, 1)
         gateU.ry(theta1 , 0)
         gateU.cz(1,0)
-        gateU.h(0)
+        # gateU.h(0)
         return gateU.to_gate()
     
     # qc.x(q1[0])
@@ -363,11 +373,10 @@ grad, loss_min, loss_plus = gradient(ch_gen, H_real, H_imag, params_U, 0)
 
 # %%
 
-
 WL = 0.5
 N_eps = 50
 N_data = 2
-learn_step = 4
+learn_step = 6
 
 w_1 = np.pi
 w_2 = np.pi
@@ -384,26 +393,11 @@ params_U = np.array([[w_1],
                      ])
 
 learn_step_init = learn_step
-
+ 
 #Generate dataset channel
 H_sample_real = []
 H_sample_imag = []
-h_ch = []
-
-for i_channel in range(N_data):
-    ch_gen = channel_gen(k_nd_BS, d_BS, k_rmd_U, d_U)
-    # ch_gen, H_real_s, H_imag_s = ch_simp(N_port, N_BS, WL) 
-
-    inputs_og = np.reshape(ch_gen,(-1,1))
-    # H_real = H_real_s.flatten()
-    # H_imag = H_imag_s.flatten()    
-    H_real = np.round(np.real(inputs_og),5).flatten()
-    H_imag = np.round(np.imag(inputs_og),5).flatten()
-    
-    h_ch.append(ch_gen)
-    H_sample_real.append(H_real)
-    H_sample_imag.append(H_imag)
-    
+h_ch = []   
 
 loss_mean_array =[]
 loss_min_array = []
@@ -413,6 +407,21 @@ rate_mean_array = []
 rate_min_array = []
 rate_max_array = []
 for i_eps in range(N_eps):
+    
+    for i_channel in range(N_data):
+        ch_gen = channel_gen(k_nd_BS, d_BS, k_rmd_U, d_U)
+        # ch_gen, H_real_s, H_imag_s = ch_simp(N_port, N_BS, WL) 
+
+        inputs_og = np.reshape(ch_gen,(-1,1))
+        # H_real = H_real_s.flatten()
+        # H_imag = H_imag_s.flatten()    
+        H_real = np.round(np.real(inputs_og),5).flatten()
+        H_imag = np.round(np.imag(inputs_og),5).flatten()
+        
+        h_ch.append(ch_gen)
+        H_sample_real.append(H_real)
+        H_sample_imag.append(H_imag)
+        
     loss_array =[]
     rate_array = []
     for i_data in range(N_data):
@@ -469,13 +478,13 @@ plt.grid(True)
 plt.rc('grid', linestyle="dotted", color='grey')
 plt.legend(loc='best')
 
-# plt.savefig('training_loss_plot.svg', format='svg', dpi=1200, bbox_inches="tight")
+# plt.savefig('training_loss_plot3.svg', format='svg', dpi=1200, bbox_inches="tight")
 plt.show()
 
-# %% plot sum_rate
+ # %% plot sum_rate
 
 plt.plot(rate_mean_array, color='blue', label='Rate')
-plt.fill_between(np.arange(N_eps), rate_max_array, rate_min_array, color='#0000FF33')
+plt.fill_between(np.arange(N_eps), rate_max_array, rate_min_array, color='blue', alpha=0.2)
 
 # naming the x axis 
 plt.xlabel('Episode') 
@@ -487,7 +496,7 @@ plt.grid(True)
 plt.rc('grid', linestyle="dotted", color='grey')
 plt.legend(loc='lower right')
 
-# plt.savefig('rate_plot.svg', format='svg', dpi=1200, bbox_inches="tight")
+# plt.savefig('rate_plot3.svg', format='svg', dpi=1200, bbox_inches="tight")
 plt.show()
 
 
@@ -511,7 +520,7 @@ plt.rc('grid', linestyle="dotted", color='grey')
 plt.legend(loc='best')
 
 # === Save the figure object to pickle ===
-with open('QGNN_training.pkl', 'wb') as f:
+with open('QGNN_training_enc_VE.pkl', 'wb') as f:
     pickle.dump(fig, f)
 
 plt.show()
@@ -522,7 +531,7 @@ plt.show()
 fig, ax = plt.subplots()  # Create figure and axes object
 
 plt.plot(rate_mean_array, color='blue', label='Rate')
-plt.fill_between(np.arange(N_eps), rate_max_array, rate_min_array, color='#0000FF33')
+plt.fill_between(np.arange(N_eps), rate_max_array, rate_min_array, color='blue', alpha=0.2)
 
 # naming the x axis 
 plt.xlabel('Episode') 
@@ -535,7 +544,7 @@ plt.rc('grid', linestyle="dotted", color='grey')
 plt.legend(loc='lower right')
 
 # === Save the figure object to pickle ===
-with open('QGNN_rate.pkl', 'wb') as f:
+with open('QGNN_rate_enc_VE.pkl', 'wb') as f:
     pickle.dump(fig, f)
 
 plt.show()
