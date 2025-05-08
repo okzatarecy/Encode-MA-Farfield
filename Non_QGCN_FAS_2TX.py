@@ -1,25 +1,30 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Sat Apr 26 14:58:22 2025
+Created on Thu May  8 12:29:40 2025
 
 @author: okzatarecy
 """
 
-
 import numpy as np
-from qiskit import QuantumCircuit
-from qiskit.circuit import QuantumRegister, ClassicalRegister, QuantumCircuit, ParameterVector
+import matplotlib.pyplot as plt # Import matplotlib.pyplot
+
+import qiskit
+from qiskit.circuit import Parameter
+from qiskit import QuantumRegister, ClassicalRegister, QuantumCircuit
 from qiskit import transpile
-from qiskit.primitives import StatevectorSampler, StatevectorEstimator, Sampler
 from qiskit.result import marginal_counts
 from qiskit.visualization import plot_histogram
-from qiskit.circuit import Gate
+from qiskit.primitives import StatevectorSampler, StatevectorEstimator
+from qiskit.quantum_info import Pauli, SparsePauliOp
+import numpy as np
 from math import pi
 import scipy
 from scipy.special import jv
 from numpy import linalg as LA
-import matplotlib.pyplot as plt
+# %% initialization
+
+#### This code for non graph based quantum
 
 # %%
 # 
@@ -39,7 +44,7 @@ k_nd_BS = (2 * (np.arange(1, N+1) - 1) - N + 1)/2 * d_BS; # The coordinate of an
 k_rmd_U = (2 * (r_m - 1) - M + 1)/2 * d_U; # Coordinate of activated port r_m
 L_t = 2; # Number of transmit paths
 L_r = 2; # Number of receive paths
-bandwidth = 6.5e6 #channel bandwidth
+bandwidth = 1.5e6 #channel bandwidth
 
  # %%
 def channel_gen(k_nd_BS, d_BS, k_rmd_U, d_U):
@@ -117,87 +122,77 @@ H_imag = np.round(np.imag(h_ch),5).flatten()
 # H_real = H_real.flatten()
 # H_imag = H_imag.flatten()
 
-# %% quantum circuit
 
-def Q_encode(H, H_real, H_imag, params_U):
-    
-    q1 = QuantumRegister(6, 'q1')
-    q2 = QuantumRegister(5, 'q2')
-    c2 = ClassicalRegister(2, 'c2')
-    qc = QuantumCircuit(q1, q2, c2)  # Deklarasi semua register sekaligus
-    
-    # hada = [h for h in range(6)]
-    # qc.h(hada)
-    # quantum state preparation
-    for i_re in range(6): 
-        qc.ry(H_real[i_re], q1[i_re])
+# %%
+
+def Q_sampler_est(h_ch, H_real, H_imag, params_U):
         
-    for i_im in range(6):
-        qc.rz(H_imag[i_im], q1[i_im])
+    q = QuantumRegister(H_real.size, 'q')
+    c = ClassicalRegister(6, 'c')
+    qc1= QuantumCircuit(q,c)
     
-    edges = [e for e in range(6)]
-    qc.x(edges)
+    # h_abs1 = np.abs(h_ch)
+    # h_abs = h_abs1.flatten()
+    # h_max = np.max(h_abs)     
+    # angle_amp =  (h_abs / h_max) * np.pi
+    # angle_phase = np.angle(h_ch).flatten()
     
+    # for k in range(H_real.size):    
+    #     qc1.ry(angle_amp[k], q[k])
+            
+    # for i in range(H_real.size):
+    #     qc1.rz(angle_phase[i], q[i])
+       
+    for k in range(H_real.size):
+        qc1.ry(H_real[k], q[k])
+                
+    for i in range(H_real.size):
+        qc1.rz(H_imag[i], q[i])
+    qc1.barrier()
+ 
     
-    for i_re in range(5): 
-        qc.ry(0.5, q2[i_re])
+    qc1.cz(q[0], q[1])
+    qc1.cz(q[1], q[2])
+    qc1.cz(q[2], q[3])
+    qc1.cz(q[3], q[4])
+    qc1.cz(q[4], q[5])
+    qc1.cz(q[5], q[0])
+
+    qc1.barrier()
         
-    for i_im in range(5):
-        qc.rz(0.5, q2[i_im])
+    qc1.ry(params_U[0,0], q[0])
+    qc1.ry(params_U[1,0], q[1])
+    qc1.ry(params_U[2,0], q[2])
+    qc1.ry(params_U[3,0], q[3])
+    qc1.ry(params_U[4,0], q[4])
+    qc1.ry(params_U[5,0], q[5])
+    
+    qc1.barrier()
+    
+    # Superposition Combination
+    # qc1.h(q[0])  # Superposition untuk out1, out3, out5
+    qc1.cx(q[2], q[0])
+    qc1.cx(q[4], q[0])
+    
+    # qc1.h(q[1])  # Superposition untuk out2, out4, out6
+    qc1.cx(q[3], q[1])
+    qc1.cx(q[5], q[1])
+    
+    # Gabungkan qubit q[0], q[2], q[4] menjadi output pertama
+    # qc1.cx(q[0], q[2])  # Gabungkan q[0] dan q[2]
+    # qc1.cx(q[2], q[4])  # Gabungkan q[2] dan q[4]
+
+    # Gabungkan qubit q[1], q[3], q[5] menjadi output kedua
+    # qc1.cx(q[1], q[3])  # Gabungkan q[1] dan q[3]
+    # qc1.cx(q[3], q[5])  # Gabungkan q[3] dan q[5]
+    # qc1.ccx(q[0], q[2], q[4])
+    # qc1.ccx(q[1], q[3], q[5])
+    qc1.barrier()
         
-    qc.barrier()
-    
-    def create_u_gate(label, theta1):
-        gateU = QuantumCircuit(2, name=f'U{label}')  
-        # gateU.h(0)
-        gateU.cz(0, 1)
-        gateU.ry(theta1 , 0)
-        gateU.cz(0,1)
-        # gateU.h(0)
-        return gateU.to_gate()
-    
-    # qc.x(q1[0])
-    u1 = create_u_gate(1, params_U[0,0]).control(1)
-    qc.append(u1, [q1[0], q2[0], q2[1]])
-    qc.swap(q2[0], q2[1])
-    qc.barrier()
-    
-    # qc.x(q1[1])
-    u2 = create_u_gate(2, params_U[1,0]).control(1)
-    qc.append(u2, [q1[1], q2[1], q2[2]])
-    qc.swap(q2[1], q2[2])
-    qc.barrier()
-    
-    # qc.x(q1[2])
-    u3= create_u_gate(3, params_U[2,0]).control(1)
-    qc.append(u3, [q1[2], q2[2], q2[3]])
-    qc.swap(q2[3], q2[4])
-    qc.barrier()
-    
-    # qc.x(q1[3])
-    u4= create_u_gate(4, params_U[3,0]).control(1)
-    qc.append(u4, [q1[3], q2[3], q2[4]])
-    qc.swap(q2[3], q2[1])
-    qc.swap(q2[3], q2[2])
-    qc.barrier()
-    
-    # qc.x(q1[4])
-    u5= create_u_gate(5,params_U[4,0]).control(1)
-    qc.append(u5, [q1[4], q2[1], q2[2]])
-    qc.swap(q2[1], q2[0])
-    qc.barrier()
-    
-    # qc.x(q1[5])
-    u6= create_u_gate(6,params_U[5,0]).control(1)
-    qc.append(u6, [q1[5], q2[1], q2[0]])
-    # qc.cz(q2[5], q2[6])
-    # qc.swap(q2[4], q2[5])
-    
-    qc.barrier()
-    qc.measure(q2[0], c2[0])    
-    qc.measure(q2[1], c2[1])
-    
-    return qc
+    qc1.measure(q[0], c[0]) 
+    qc1.measure(q[1], c[1]) 
+    return qc1
+
 w_1 = np.pi
 w_2 = np.pi
 w_3 = np.pi
@@ -211,79 +206,47 @@ params_U = np.array([[w_1],
                      [w_5],
                      [w_6]
                      ])
-qc2 = Q_encode(ch_gen, H_real, H_imag, params_U)
-
+qc = Q_sampler_est(ch_gen, H_real, H_imag, params_U)
 # %%
+#
 def ave_meas(count):
      total = count.get('0', 0) + count.get('1', 0)
      return count.get('1', 0) / total if total > 0 else 0
  
-def Q_decode(h_ch, H_real, H_imag, params_U, shots):
-    
-    qc = Q_encode(h_ch, H_real, H_imag, params_U)
+def Q_decode(h_ch, H_real, H_imag, params_U, shots):    
+       
+    qc1 =  Q_sampler_est(ch_gen, H_real, H_imag, params_U)
     sampler = StatevectorSampler()
-    
-    job = sampler.run( [(qc)], shots=shots)
-    result = job.result()
-    counts_sam = result[0].data.c2.get_counts()
-    
+        
+    job_sam = sampler.run( [(qc1)], shots = shots)
+    result_sam = job_sam.result()
+    counts_sam = result_sam[0].data.c.get_counts()
+        
     simp_counts_01 = marginal_counts(counts_sam, indices=[0])
     simp_counts_02 = marginal_counts(counts_sam, indices=[1])
-    
+
+        # counts_sam = result_sam[0].data.c.get_counts()
+        
     out1 = ave_meas(simp_counts_01)
     out2 = ave_meas(simp_counts_02)
-    
+
+        
     out = [out1, out2]
 
-    return counts_sam, qc, out, out1, out2
+    return qc1, counts_sam, out, out1, out2
 
-count_sam, qc, out, out1, out2 = Q_decode(ch_gen, H_real, H_imag, params_U, shots=1024)
-
+#H_real = H_sample_real[0]
+#H_imag = H_sample_imag[0]
+qc1, counts_sam,out, out1, out2 = Q_decode(ch_gen, H_real, H_imag, params_U, shots=1024)
 print("measurement_average_01 =",out[0])
 print("measurement_average_02 =",out[1])
-# print("measurement_average_03 =",out[2])
-# %%
-#
+# %% loss function
+
 num_ports=3
+H = ch_gen
 ptx = 5
 sigma_n = 1
     
-# def loss(ch_gen, H_real, H_imag, params_U):
-    
-#     count_sam, qc, out, out1, out2 = Q_decode(ch_gen, H_real, H_imag, params_U, shots=1024)
-    
-#     v1 = np.exp(1j*(out1))     # 1st BS
-#     v2 = np.exp(1j*(out2))     # 2nd BS
-#     V1 = v1/abs(v1)
-#     V2 = v2/abs(v2)
-#     Q = np.array([V1,V2])
-    
-    
-#     sinr1 = np.abs(ch_gen[0,:] @ Q)**2
-#     sinr2 = np.abs(ch_gen[1,:] @ Q)**2
-#     sinr3 = np.abs(ch_gen[2,:] @ Q)**2
-    
-#     sinr_p1 = sinr1 / (sinr2+sinr3+sigma_n)
-#     sinr_p2 = sinr2 / (sinr1+sinr3+sigma_n)
-#     sinr_p3 = sinr3 / (sinr1+sinr2+sigma_n)
-    
-#     sinr_all = np.array([sinr_p1,sinr_p2,sinr_p3])
-#     # best_port = np.argmax(sinr_all)
-#     # sum_rate = np.log2(1 + sinr_all[best_port])
-    
-#     indices = np.argsort(sinr_all)[-2:]
-#     best_sinr = sinr_all[indices]
-    
-#     sum_rate1 = np.log2(1 + best_sinr[0])
-#     sum_rate2 = np.log2(1 + best_sinr[1])
-#     sum_rate = sum_rate1+sum_rate2        
-
-#     loss = -1*(sum_rate)
-#     return loss
-
-# los = loss(ch_gen, H_real, H_imag, params_U)
-
-# %% sum-rate func
 
 def LossRate(ch_gen, H_real, H_imag, params_U, bandwidth):
     
@@ -322,8 +285,46 @@ def LossRate(ch_gen, H_real, H_imag, params_U, bandwidth):
 
 loss, rate = LossRate(ch_gen, H_real, H_imag, params_U, bandwidth)
 
-
 # %%
+# ww = np.random.randn(3, 2) + 1j * np.random.randn(3, 2)
+# num_ports=3
+# H = ch_gen
+# ptx = 5
+# sigma_n = 1
+    
+# def loss(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6):
+    
+#     qc1, counts_sam,out, out1, out2, out3, out4, out5, out6 = Q_sampler_est(H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6, shots=2096)
+    
+#     v1 = np.exp(1j*(2*np.pi/Lambda)*(out1+out3+out5))     # 1st BS
+#     v2 = np.exp(1j*(2*np.pi/Lambda)*(out2+out4+out6))     # 2nd BS
+#     V1 = v1/abs(v1)
+#     V2 = v2/abs(v2)
+#     Q = np.array([V1,V2])
+    
+#     def compute_sinr(H, Q, num_ports, sigma_n):
+#         sinr = np.zeros(num_ports)
+#         for k in range(num_ports):
+#             signal = np.abs(H[k,:].conj().T @ Q)**2  # Sinyal ke port p
+#             interference = np.sum([np.abs(H[j, :].conj().T @ Q)**2 for j in range(num_ports) if j != k
+#                                    ])
+#             # interference = np.sum(np.abs(H @ Q)**2) - signal  # Interferensi dari port lain
+#             sinr[k] = signal / (interference + sigma_n)  # Hitung SINR port p
+        
+#         best_port = np.argmax(sinr)
+#         return sinr, best_port
+
+#     sinr, best_port = compute_sinr(H, Q, num_ports, sigma_n)
+#     # print(sinr)
+    
+#     sum_rate = np.log2(1 + sinr[best_port])
+
+#     loss = -(sum_rate)
+#     return loss
+
+# los = loss(N_BS, ch_gen, H_real, H_imag, w_1, w_2, w_3, w_4, w_5, w_6)
+# %% gradient
+
 def update_matrix_min(matrix_min, single_index, shift):
     m = len(matrix_min)     # Jumlah baris
     n = len(matrix_min[0])  # Jumlah kolom
@@ -369,14 +370,14 @@ def gradient(H, H_real, H_imag, params_U, w_index):
         
     return grad, loss_min, loss_plus
 
-grad, loss_min, loss_plus = gradient(ch_gen, H_real, H_imag, params_U, 0)  
+grad, loss_min, loss_plus = gradient(ch_gen, H_real, H_imag, params_U, 0) 
 
 # %%
 
 WL = 0.5
 N_eps = 50
 N_data = 2
-learn_step =3
+learn_step = 2
 
 w_1 = np.pi
 w_2 = np.pi
@@ -393,10 +394,11 @@ params_U = np.array([[w_1],
                      ])
 
 learn_step_init = learn_step
+ 
 #Generate dataset channel
 H_sample_real = []
 H_sample_imag = []
-h_ch = [] 
+h_ch = []   
 
 loss_mean_array =[]
 loss_min_array = []
@@ -406,7 +408,7 @@ rate_mean_array = []
 rate_min_array = []
 rate_max_array = []
 for i_eps in range(N_eps):
-  
+    
     for i_channel in range(N_data):
         ch_gen = channel_gen(k_nd_BS, d_BS, k_rmd_U, d_U)
         # ch_gen, H_real_s, H_imag_s = ch_simp(N_port, N_BS, WL) 
@@ -424,7 +426,7 @@ for i_eps in range(N_eps):
     loss_array =[]
     rate_array = []
     for i_data in range(N_data):
-        # np.int64(np.round(len(h_ch)/3))
+        
         for i_weight in range(params_U.size):
             
             row = i_weight // params_U.shape[1] 
@@ -477,127 +479,28 @@ plt.grid(True)
 plt.rc('grid', linestyle="dotted", color='grey')
 plt.legend(loc='best')
 
-plt.savefig('training_loss_revise_plot.svg', format='svg', dpi=1200, bbox_inches="tight")
-plt.show()
-
-  # %% plot sum_rate
-
-plt.plot(rate_mean_array, color='blue', label='Rate')
-plt.fill_between(np.arange(N_eps), rate_max_array, rate_min_array, color='blue', alpha=0.2)
-
-# naming the x axis 
-plt.xlabel('Episode') 
-# naming the y axis 
-plt.ylabel('Rate (bps/Hz)') 
-
-
-plt.grid(True)
-plt.rc('grid', linestyle="dotted", color='grey')
-plt.legend(loc='lower right')
-
-plt.savefig('rate_revise_plot.svg', format='svg', dpi=1200, bbox_inches="tight")
-plt.show()
-
-
-# %% Save figure using pickle (training loss)
-
-import pickle
-# === Your Plotting Code ===
-fig, ax = plt.subplots()  # Create figure and axes object
-
-plt.plot(loss_mean_array, color='blue', label='Training Loss')
-plt.fill_between(np.arange(N_eps), loss_max_array, loss_min_array, color='blue', alpha=0.2)
-
-# naming the x axis 
-plt.xlabel('Training episode') 
-# naming the y axis 
-plt.ylabel('Loss') 
-
-
-plt.grid(True)
-plt.rc('grid', linestyle="dotted", color='grey')
-plt.legend(loc='best')
-
-# === Save the figure object to pickle ===
-with open('QGNN_training_enc_VE_revise.pkl', 'wb') as f:
-    pickle.dump(fig, f)
-
-plt.show()
-
-# %% Save figure using pickle (Rate)
-
-# === Your Plotting Code ===
-fig, ax = plt.subplots()  # Create figure and axes object
-
-plt.plot(rate_mean_array, color='blue', label='Rate')
-plt.fill_between(np.arange(N_eps), rate_max_array, rate_min_array, color='blue', alpha=0.2)
-
-# naming the x axis 
-plt.xlabel('Episode') 
-# naming the y axis 
-plt.ylabel('Rate (bps/Hz)') 
-
-
-plt.grid(True)
-plt.rc('grid', linestyle="dotted", color='grey')
-plt.legend(loc='lower right')
-
-# === Save the figure object to pickle ===
-with open('QGNN_rate_enc_VE_revise.pkl', 'wb') as f:
-    pickle.dump(fig, f)
-
-plt.show()
-# %% To Load the Saved Figure Later
-
-import matplotlib.pyplot as plt
-import pickle
-
-# Load the figure from the Pickle file
-with open('QGNN_training.pkl', 'rb') as f:
-    fig = pickle.load(f)
-
-# === Access the axes and the lines ===
-ax = fig.axes[0]  # Assuming only one subplot (axes)
-ax.set_title('Updated Title: Quantum Neural Network')
-# ax.set_title('New Title Here', fontsize=14, fontweight='bold', loc='center')
-# Access all lines in the plot (returns a list of Line2D objects)
-lines = ax.get_lines()
-# Example: Change the color of the first line
-lines[0].set_color('red')  # Change to any color you want, e.g., 'blue', '#FF5733'
-
-# Optional: Change line style or linewidth as well
-# lines[0].set_linestyle('--')
-# lines[0].set_linewidth(2)
-# lines[0].set_color('blue')
-# lines[0].set_marker('o')
-# lines[0].set_markersize(5)
-# lines[0].set_label('Updated Training Loss') 
-
-
-ax.legend()
-# === Show the updated figure ===
+# plt.savefig('training_loss_Non_plot3.svg', format='svg', dpi=1200, bbox_inches="tight")
 plt.show()
 # %%
-# Result - weight final Ndata= 1 learnsteinit (2): Result - weight final:  
- # [[[3.13964884]
-  # [3.1550537 ]
-  # [3.12002723]
-  # [3.39378661]
-  # [1.70773878]
-  # [4.67869578]]]
 
-# Result - weight final Ndata= 1 learnsteinit (2): Result - weight final:   
-# [[[3.15754561]
-#   [3.14888535]
-#   [3.11466766]
-#   [4.6987544 ]
-#   [4.70513408]
-#   [1.57652649]]]
+plt.plot(rate_mean_array, color='blue', label='Rate')
+plt.fill_between(np.arange(N_eps), rate_max_array, rate_min_array, color='blue', alpha=0.2)
 
-# Result - weight final Ndata= 2 learnsteinit (2): Result - weight final: 
-    # [[[3.24421359]
-    #   [3.19915444]
-    #   [3.03174556]
-    #   [4.67610933]
-    #   [4.68151942]
-    #   [1.56348701]]]
+# naming the x axis 
+plt.xlabel('Episode') 
+# naming the y axis 
+plt.ylabel('Rate (bps/Hz)') 
+
+
+plt.grid(True)
+plt.rc('grid', linestyle="dotted", color='grey')
+plt.legend(loc='lower right')
+
+# plt.savefig('rate_Non_plot3.svg', format='svg', dpi=1200, bbox_inches="tight")
+plt.show()
+# %%
+#
+# Result - weight final Ndata=1 learnsteinit (3): [[1.52021903 4.64165236 2.97436532 2.9345749  3.82982091 2.70906777]]
+# Result - weight final Ndata=10 learnsteinit (2): [[1.54010869 4.84064471 3.12875271 3.30091615 3.12799423 3.1104534 ]]
+# Result - weight final  Ndata=20 learnsteinit (2):  [[1.6614066  4.70851437 2.96296494 3.09708533 3.16486484 3.25067301]]
+# Result - weight final Ndata=40 learnsteinit (1): [[1.59559124 4.63071261 3.24797102 3.09708461 3.05688972 3.07325515]]  
