@@ -394,9 +394,7 @@ params_U = np.array([[w_1],
 
 learn_step_init = learn_step
 #Generate dataset channel
-H_sample_real = []
-H_sample_imag = []
-h_ch = [] 
+
 
 loss_mean_array =[]
 loss_min_array = []
@@ -406,7 +404,10 @@ rate_mean_array = []
 rate_min_array = []
 rate_max_array = []
 for i_eps in range(N_eps):
-  
+    
+    H_sample_real = []
+    H_sample_imag = []
+    h_ch = [] 
     for i_channel in range(N_data):
         ch_gen = channel_gen(k_nd_BS, d_BS, k_rmd_U, d_U)
         # ch_gen, H_real_s, H_imag_s = ch_simp(N_port, N_BS, WL) 
