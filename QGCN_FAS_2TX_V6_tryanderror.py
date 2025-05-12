@@ -145,15 +145,18 @@ def Q_encode(H, H_real, H_imag, params_U):
     for i_im in range(5):
         qc.rz(0.5, q2[i_im])
         
+    # edges = [e+6 for e in range(5)]
+    # qc.h(edges)
+    
     qc.barrier()
     
     def create_u_gate(label, theta1):
         gateU = QuantumCircuit(2, name=f'U{label}')  
-        # gateU.h(0)
+        gateU.h(1)
         gateU.cz(0, 1)
         gateU.ry(theta1 , 0)
         gateU.cz(0,1)
-        # gateU.h(0)
+        
         return gateU.to_gate()
     
     # qc.x(q1[0])
@@ -374,9 +377,10 @@ grad, loss_min, loss_plus = gradient(ch_gen, H_real, H_imag, params_U, 0)
 # %%
 
 WL = 0.5
-N_eps = 10
-N_data = 1
-learn_step = 2
+N_eps = 50
+N_data = 2
+learn_step = 3
+shift = np.pi/2
 
 w_1 = np.pi
 w_2 = np.pi
@@ -397,12 +401,12 @@ learn_step_init = learn_step
 H_sample_real = []
 H_sample_imag = []
 h_ch = [] 
-h_ch = np.array([[-3.38808382+1.61964646j,  2.41701005+0.34117205j],
-       [-0.40897523-3.47990012j, -0.98520206+3.2845099j ],
-       [ 3.44889666+1.20110836j, -2.55814964-3.85044008j]])        
+# h_ch = np.array([[-3.38808382+1.61964646j,  2.41701005+0.34117205j],
+#        [-0.40897523-3.47990012j, -0.98520206+3.2845099j ],
+#        [ 3.44889666+1.20110836j, -2.55814964-3.85044008j]])        
     
-H_sample_real = np.array([-3.38808,  2.41701, -0.40898, -0.9852 ,  3.4489 , -2.55815])
-H_sample_imag = np.array([ 1.61965,  0.34117, -3.4799 ,  3.28451,  1.20111, -3.85044])   
+# H_sample_real = np.array([-3.38808,  2.41701, -0.40898, -0.9852 ,  3.4489 , -2.55815])
+# H_sample_imag = np.array([ 1.61965,  0.34117, -3.4799 ,  3.28451,  1.20111, -3.85044])   
 
 loss_mean_array =[]
 loss_min_array = []
@@ -411,45 +415,58 @@ loss_max_array = []
 rate_mean_array = []
 rate_min_array = []
 rate_max_array = []
+
+for i_channel in range(N_data):
+    ch_gen = channel_gen(k_nd_BS, d_BS, k_rmd_U, d_U)
+    # ch_gen, H_real_s, H_imag_s = ch_simp(N_port, N_BS, WL) 
+
+    inputs_og = np.reshape(ch_gen,(-1,1))
+    # H_real = H_real_s.flatten()
+    # H_imag = H_imag_s.flatten()    
+    H_real = np.round(np.real(inputs_og),5).flatten()
+    H_imag = np.round(np.imag(inputs_og),5).flatten()
+    
+    h_ch.append(ch_gen)
+    H_sample_real.append(H_real)
+    H_sample_imag.append(H_imag)
+    
+
 for i_eps in range(N_eps):
-    
-
-    # for i_channel in range(N_data):
-    #     ch_gen = channel_gen(k_nd_BS, d_BS, k_rmd_U, d_U)
-    #     # ch_gen, H_real_s, H_imag_s = ch_simp(N_port, N_BS, WL) 
-
-    #     inputs_og = np.reshape(ch_gen,(-1,1))
-    #     # H_real = H_real_s.flatten()
-    #     # H_imag = H_imag_s.flatten()    
-    #     H_real = np.round(np.real(inputs_og),5).flatten()
-    #     H_imag = np.round(np.imag(inputs_og),5).flatten()
-        
-    #     h_ch.append(ch_gen)
-    #     H_sample_real.append(H_real)
-    #     H_sample_imag.append(H_imag)
-        
-     
-    
     loss_array =[]
     rate_array = []
-    for i_data in range(N_data):
-        # np.int64(np.round(len(h_ch)/3))
-        for i_weight in range(params_U.size):
+    params_U_min = params_U.copy()
+    params_U_plus = params_U.copy()
+    
+    # iteration each weight for N_data
+    for i_weight in range(params_U.shape[0]):
+        
+        for j_weight in range(params_U.shape[1]):
+            loss_idata = np.zeros(N_data)
+            loss_min_idata = np.zeros(N_data)
+            loss_plus_idata = np.zeros(N_data)
             
-            row = i_weight // params_U.shape[1] 
-            col = i_weight % params_U.shape[1]
-            
-            grad, loss_min, loss_plus = gradient(h_ch[i_data], H_sample_real[i_data], H_sample_imag[i_data], params_U, i_weight)
-            # grad =0.5
+            params_U_min[i_weight, j_weight] = params_U_min[i_weight, j_weight] - shift
+            params_U_plus[i_weight, j_weight] = params_U_plus[i_weight, j_weight] + shift
+           
+            for i_data in range(N_data):
+                H_idata = h_ch[i_data]
+                H_real_idata = H_sample_real[i_data]
+                H_imag_idata = H_sample_imag[i_data]
+                loss_min_idata[i_data], rate_min = LossRate(H_idata, H_real_idata, H_imag_idata, params_U_min, bandwidth)   
+                loss_plus_idata[i_data], rate_plus = LossRate(H_idata, H_real_idata, H_imag_idata, params_U_plus, bandwidth)
+                    
+            Loss_min = np.mean(loss_min_idata)
+            Loss_plus = np.mean(loss_plus_idata)
+            grad = (1/2*np.sin(shift)) * (Loss_plus-Loss_min)
             learn_step = learn_step_init / np.sqrt(i_eps+1)
-            # learn_step = 0.5 * learn_step_init * (1+np.cos((np.pi*(i_eps+1))/N_eps))
-            # learn_step = learn_step_init
-            
-            params_U[row, col] = params_U[row, col] - ((learn_step)*grad)
-            # w = np.array(w[i_weight])
-        
-        loss_cal, rate_cal = LossRate(h_ch[i_data], H_sample_real[i_data], H_sample_imag[i_data], params_U, bandwidth)
-        
+            params_U[i_weight, j_weight] = params_U[i_weight, j_weight] - ((learn_step)*grad)
+
+    
+    for i_data in range(N_data):
+        H_idata = h_ch[i_data]
+        H_real_idata = H_sample_real[i_data]
+        H_imag_idata = H_sample_imag[i_data]
+        loss_cal, rate_cal = LossRate(H_idata, H_real_idata,  H_imag_idata, params_U, bandwidth)
         loss_array.append(loss_cal)
         rate_array.append(rate_cal)
     
@@ -486,7 +503,7 @@ plt.grid(True)
 plt.rc('grid', linestyle="dotted", color='grey')
 plt.legend(loc='best')
 
-plt.savefig('training_loss_revise_plot.svg', format='svg', dpi=1200, bbox_inches="tight")
+# plt.savefig('training_loss_revise_plot.svg', format='svg', dpi=1200, bbox_inches="tight")
 plt.show()
 
   # %% plot sum_rate
@@ -504,109 +521,109 @@ plt.grid(True)
 plt.rc('grid', linestyle="dotted", color='grey')
 plt.legend(loc='lower right')
 
-plt.savefig('rate_revise_plot.svg', format='svg', dpi=1200, bbox_inches="tight")
+# plt.savefig('rate_revise_plot.svg', format='svg', dpi=1200, bbox_inches="tight")
 plt.show()
 
 
-# %% Save figure using pickle (training loss)
+# # %% Save figure using pickle (training loss)
 
-import pickle
-# === Your Plotting Code ===
-fig, ax = plt.subplots()  # Create figure and axes object
+# import pickle
+# # === Your Plotting Code ===
+# fig, ax = plt.subplots()  # Create figure and axes object
 
-plt.plot(loss_mean_array, color='blue', label='Training Loss')
-plt.fill_between(np.arange(N_eps), loss_max_array, loss_min_array, color='blue', alpha=0.2)
+# plt.plot(loss_mean_array, color='blue', label='Training Loss')
+# plt.fill_between(np.arange(N_eps), loss_max_array, loss_min_array, color='blue', alpha=0.2)
 
-# naming the x axis 
-plt.xlabel('Training episode') 
-# naming the y axis 
-plt.ylabel('Loss') 
-
-
-plt.grid(True)
-plt.rc('grid', linestyle="dotted", color='grey')
-plt.legend(loc='best')
-
-# === Save the figure object to pickle ===
-with open('QGNN_training_enc_VE_revise.pkl', 'wb') as f:
-    pickle.dump(fig, f)
-
-plt.show()
-
-# %% Save figure using pickle (Rate)
-
-# === Your Plotting Code ===
-fig, ax = plt.subplots()  # Create figure and axes object
-
-plt.plot(rate_mean_array, color='blue', label='Rate')
-plt.fill_between(np.arange(N_eps), rate_max_array, rate_min_array, color='blue', alpha=0.2)
-
-# naming the x axis 
-plt.xlabel('Episode') 
-# naming the y axis 
-plt.ylabel('Rate (bps/Hz)') 
+# # naming the x axis 
+# plt.xlabel('Training episode') 
+# # naming the y axis 
+# plt.ylabel('Loss') 
 
 
-plt.grid(True)
-plt.rc('grid', linestyle="dotted", color='grey')
-plt.legend(loc='lower right')
+# plt.grid(True)
+# plt.rc('grid', linestyle="dotted", color='grey')
+# plt.legend(loc='best')
 
-# === Save the figure object to pickle ===
-with open('QGNN_rate_enc_VE_revise.pkl', 'wb') as f:
-    pickle.dump(fig, f)
+# # === Save the figure object to pickle ===
+# with open('QGNN_training_enc_VE_revise.pkl', 'wb') as f:
+#     pickle.dump(fig, f)
 
-plt.show()
-# %% To Load the Saved Figure Later
+# plt.show()
 
-import matplotlib.pyplot as plt
-import pickle
+# # %% Save figure using pickle (Rate)
 
-# Load the figure from the Pickle file
-with open('QGNN_training.pkl', 'rb') as f:
-    fig = pickle.load(f)
+# # === Your Plotting Code ===
+# fig, ax = plt.subplots()  # Create figure and axes object
 
-# === Access the axes and the lines ===
-ax = fig.axes[0]  # Assuming only one subplot (axes)
-ax.set_title('Updated Title: Quantum Neural Network')
-# ax.set_title('New Title Here', fontsize=14, fontweight='bold', loc='center')
-# Access all lines in the plot (returns a list of Line2D objects)
-lines = ax.get_lines()
-# Example: Change the color of the first line
-lines[0].set_color('red')  # Change to any color you want, e.g., 'blue', '#FF5733'
+# plt.plot(rate_mean_array, color='blue', label='Rate')
+# plt.fill_between(np.arange(N_eps), rate_max_array, rate_min_array, color='blue', alpha=0.2)
 
-# Optional: Change line style or linewidth as well
-# lines[0].set_linestyle('--')
-# lines[0].set_linewidth(2)
-# lines[0].set_color('blue')
-# lines[0].set_marker('o')
-# lines[0].set_markersize(5)
-# lines[0].set_label('Updated Training Loss') 
+# # naming the x axis 
+# plt.xlabel('Episode') 
+# # naming the y axis 
+# plt.ylabel('Rate (bps/Hz)') 
 
 
-ax.legend()
-# === Show the updated figure ===
-plt.show()
-# %%
-# Result - weight final Ndata= 1 learnsteinit (2): Result - weight final:  
- # [[[3.13964884]
-  # [3.1550537 ]
-  # [3.12002723]
-  # [3.39378661]
-  # [1.70773878]
-  # [4.67869578]]]
+# plt.grid(True)
+# plt.rc('grid', linestyle="dotted", color='grey')
+# plt.legend(loc='lower right')
 
-# Result - weight final Ndata= 1 learnsteinit (2): Result - weight final:   
-# [[[3.15754561]
-#   [3.14888535]
-#   [3.11466766]
-#   [4.6987544 ]
-#   [4.70513408]
-#   [1.57652649]]]
+# # === Save the figure object to pickle ===
+# with open('QGNN_rate_enc_VE_revise.pkl', 'wb') as f:
+#     pickle.dump(fig, f)
 
-# Result - weight final Ndata= 2 learnsteinit (2): Result - weight final: 
-    # [[[3.24421359]
-    #   [3.19915444]
-    #   [3.03174556]
-    #   [4.67610933]
-    #   [4.68151942]
-    #   [1.56348701]]]
+# plt.show()
+# # %% To Load the Saved Figure Later
+
+# import matplotlib.pyplot as plt
+# import pickle
+
+# # Load the figure from the Pickle file
+# with open('QGNN_training.pkl', 'rb') as f:
+#     fig = pickle.load(f)
+
+# # === Access the axes and the lines ===
+# ax = fig.axes[0]  # Assuming only one subplot (axes)
+# ax.set_title('Updated Title: Quantum Neural Network')
+# # ax.set_title('New Title Here', fontsize=14, fontweight='bold', loc='center')
+# # Access all lines in the plot (returns a list of Line2D objects)
+# lines = ax.get_lines()
+# # Example: Change the color of the first line
+# lines[0].set_color('red')  # Change to any color you want, e.g., 'blue', '#FF5733'
+
+# # Optional: Change line style or linewidth as well
+# # lines[0].set_linestyle('--')
+# # lines[0].set_linewidth(2)
+# # lines[0].set_color('blue')
+# # lines[0].set_marker('o')
+# # lines[0].set_markersize(5)
+# # lines[0].set_label('Updated Training Loss') 
+
+
+# ax.legend()
+# # === Show the updated figure ===
+# plt.show()
+# # %%
+# # Result - weight final Ndata= 1 learnsteinit (2): Result - weight final:  
+#  # [[[3.13964884]
+#   # [3.1550537 ]
+#   # [3.12002723]
+#   # [3.39378661]
+#   # [1.70773878]
+#   # [4.67869578]]]
+
+# # Result - weight final Ndata= 1 learnsteinit (2): Result - weight final:   
+# # [[[3.15754561]
+# #   [3.14888535]
+# #   [3.11466766]
+# #   [4.6987544 ]
+# #   [4.70513408]
+# #   [1.57652649]]]
+
+# # Result - weight final Ndata= 2 learnsteinit (2): Result - weight final: 
+#     # [[[3.24421359]
+#     #   [3.19915444]
+#     #   [3.03174556]
+#     #   [4.67610933]
+#     #   [4.68151942]
+#     #   [1.56348701]]]
