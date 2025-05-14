@@ -378,7 +378,7 @@ grad, loss_min, loss_plus = gradient(ch_gen, H_real, H_imag, params_U, 0)
 
 WL = 0.5
 N_eps = 50
-N_data = 2
+N_data = 5
 learn_step = 3
 shift = np.pi/2
 
@@ -491,7 +491,7 @@ print('Result - weight final: ', np.array([params_U]))
 
 # plt.plot(loss_mean_array, label="QNN $N_{data}$ ="+ str(N_data))
 plt.plot(loss_mean_array, color='blue', label='Training Loss')
-plt.fill_between(np.arange(N_eps), loss_max_array, loss_min_array, color='#ccccff')
+# plt.fill_between(np.arange(N_eps), loss_max_array, loss_min_array, color='#ccccff')
 
 # naming the x axis 
 plt.xlabel('Training episode') 
